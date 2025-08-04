@@ -1,0 +1,26 @@
+[Unit]
+Description=GStreamer RTP Video Stream Server
+After=network.target
+
+[Service]
+Type=simple
+
+# Match this with the PID_FILE in your script
+PIDFile=/var/run/gst_stream.pid
+
+# Path to your stream server script
+ExecStart=/root/stream_server.sh
+
+# Restart policy
+# 'on-failure' - restarts if the service exits with a non-zero exit code (error)
+# 'always'     - always restarts, even on clean exit
+Restart=on-failure
+# Wait 5 seconds before attempting restart
+RestartSec=5 
+
+# Standard output and error handling
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

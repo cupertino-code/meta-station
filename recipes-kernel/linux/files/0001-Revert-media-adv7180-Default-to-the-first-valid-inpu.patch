@@ -1,0 +1,44 @@
+From 74ca7d7d41ebf1dae3cc92ffe425947d4a9080d4 Mon Sep 17 00:00:00 2001
+From: Code <code720220@gmail.com>
+Date: Mon, 4 Aug 2025 10:58:24 +0300
+Subject: [PATCH] Revert "media: adv7180: Default to the first valid input"
+
+This reverts commit e64d605dfd61ae4cb471393b0bb0803315d94660.
+---
+ drivers/media/i2c/adv7180.c | 13 -------------
+ 1 file changed, 13 deletions(-)
+
+diff --git a/drivers/media/i2c/adv7180.c b/drivers/media/i2c/adv7180.c
+index 2ea54d8cfaeb..433a1eb89496 100644
+--- a/drivers/media/i2c/adv7180.c
++++ b/drivers/media/i2c/adv7180.c
+@@ -1417,7 +1417,6 @@ static const struct adv7180_chip_info adv7282_m_info = {
+ static int init_device(struct adv7180_state *state)
+ {
+ 	int ret;
+-	int i;
+ 
+ 	mutex_lock(&state->mutex);
+ 
+@@ -1465,18 +1464,6 @@ static int init_device(struct adv7180_state *state)
+ 			goto out_unlock;
+ 	}
+ 
+-	/* Select first valid input */
+-	for (i = 0; i < 32; i++) {
+-		if (BIT(i) & state->chip_info->valid_input_mask) {
+-			ret = state->chip_info->select_input(state, i);
+-
+-			if (ret == 0) {
+-				state->input = i;
+-				break;
+-			}
+-		}
+-	}
+-
+ out_unlock:
+ 	mutex_unlock(&state->mutex);
+ 
+-- 
+2.34.1
+
