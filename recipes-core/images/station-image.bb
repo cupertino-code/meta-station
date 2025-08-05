@@ -42,7 +42,7 @@ GSTREAMER = " \
     gstreamer1.0-plugins-base \
     gstreamer1.0-plugins-good \
     gstreamer1.0-plugins-bad \
-    gst-start \
+    camera-server \
 "
 
 IMAGE_INSTALL:append = " \
