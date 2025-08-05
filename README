@@ -2,40 +2,29 @@ This README file contains information on the contents of the meta-station layer.
 
 Please see the corresponding sections below for details.
 
-Dependencies
-============
-
-  URI: <first dependency>
-  branch: <branch name>
-
-  URI: <second dependency>
-  branch: <branch name>
-
-  .
-  .
-  .
-
 Patches
 =======
 
-Please submit any patches against the meta-station layer to the xxxx mailing list (xxxx@zzzz.org)
-and cc: the maintainer:
+Please submit any patches against the meta-station layer to the original github
+repository https://github.com/cupertino-code/station-manifest.git
 
-Maintainer: XXX YYYYYY <xxx.yyyyyy@zzzzz.com>
+Maintainer: Code <code720220@gmail.com>
 
 Table of Contents
 =================
 
-  I. Adding the meta-station layer to your build
- II. Misc
+  I. Build steps
 
+II. Build steps
+===============
 
-I. Adding the meta-station layer to your build
-=================================================
-
-Run 'bitbake-layers add-layer meta-station'
-
-II. Misc
-========
-
---- replace with specific information about the meta-station layer ---
+1. Fetch metadata:
+  repo init -u https://github.com/cupertino-code/station-manifest.git -b scarthgap
+  repo sync -c -j6
+2. Prepare build system:
+  TEMPLATECONF=$PWD/meta-station/conf/templates/station . poky/oe-init-build-env
+3. Build:
+  bitbake station-image
+4 Flash to the SD card:
+  cd tmp/deploy/images/raspberrypi0-2w
+  sudo bmaptool copy station-image-raspberrypi0-2w.rootfs.wic.bz2 /dev/sda
