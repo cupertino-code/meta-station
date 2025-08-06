@@ -10,7 +10,6 @@ inherit systemd
 RDEPENDS:${PN} = "bash"
 
 SRC_URI += " \
-    file://start.sh \
     file://stream_server.sh \
     file://camera-stream.service \
 "
@@ -18,14 +17,13 @@ SRC_URI += " \
 SYSTEMD_SERVICE:${PN} = "camera-stream.service"
 
 do_install() {
-    install -d ${D}/root
-    install -m 0755 ${WORKDIR}/start.sh ${D}/root
-    install -m 0755 ${WORKDIR}/stream_server.sh ${D}/root
+    install -d ${D}${bindir}
+    install -m 0755 ${WORKDIR}/stream_server.sh ${D}${bindir}/stream_server
     install -d ${D}${systemd_system_unitdir}
     install -m 0644 ${WORKDIR}/camera-stream.service ${D}${systemd_system_unitdir}
 }
 
 FILES:${PN} += " \
-    /root/start.sh /root/stream_server.sh \
+    ${bindir}/stream_server \
     ${systemd_system_unitdir}/camera-stream.service \
 "

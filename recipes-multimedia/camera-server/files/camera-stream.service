@@ -9,7 +9,7 @@ Type=simple
 PIDFile=/var/run/gst_stream.pid
 
 # Path to your stream server script
-ExecStart=/root/stream_server.sh
+ExecStart=/bin/stream_server
 
 # Restart policy
 # 'on-failure' - restarts if the service exits with a non-zero exit code (error)
