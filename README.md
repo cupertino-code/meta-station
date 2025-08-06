@@ -10,12 +10,6 @@ repository https://github.com/cupertino-code/station-manifest.git
 
 Maintainer: Code <code720220@gmail.com>
 
-Table of Contents
-=================
-
-  I. Build steps
-  III. Windows notes
-
 # I. Build steps
 
 1. Fetch metadata:
@@ -31,11 +25,31 @@ Table of Contents
   ```
   bitbake station-image
   ```
-4 Flash to the SD card:
+4. Flash to the SD card:
   ```
   cd tmp/deploy/images/raspberrypi0-2w
   sudo bmaptool copy station-image-raspberrypi0-2w.rootfs.wic.bz2 /dev/sda
   ```
+
+# II. Build with docker
+Build can be done in the docker container.
+Build docker image:
+```
+docker build --build-arg "host_uid=$(id -u)" --build-arg "host_gid=$(id -g)" --tag "dr-yocto" /path/to/the/Dockerfile
+```
+Replace `/path/to/the/Dockerfile` with the path to Dockerfile. This file placed in the
+`meta-station/scripts` folder. This step should be done once.
+Run docker container:
+```
+docker run -it --rm -v $PWD:/public/Work dr-yocto
+```
+Directory where container was run will be mapped to the `/public/Work` folder in the container.
+Perform steps 1, 2 and 3 from chapter "Build steps"
+SD card image and other output files placed in the build/tmp/deploy/images/raspberrypi0-2w
+directory:
+* station-image-raspberrypi0-2w.rootfs.wic.bmap
+* station-image-raspberrypi0-2w.rootfs.wic.bz2
+* station-image-raspberrypi0-2w.rootfs.wic
 
 # III. Windows notes
   To enable case sensitivity for a specific folder in NTFS, the fsutil.exe command can be used.
