@@ -3,8 +3,10 @@
 # --- Configuration ---
 # IP address of the client that will receive the stream
 # This is usually the IP of your computer or another Raspberry Pi
-TARGET_IP="192.168.13.20" # <--- !!! CHANGE THIS TO YOUR CLIENT'S IP ADDRESS !!!
-TARGET_PORT="5000"       # The port to stream to (make sure it's not blocked by firewall)
+TARGET_IP="$1"
+TARGET_PORT="$2"       # The port to stream to (make sure it's not blocked by firewall)
+TARGET_IP=${TARGET_IP:-"192.168.13.20"}
+TARGET_PORT=${TARGET_PORT:-"5000"}
 
 # Video resolution and framerate
 WIDTH="720"
@@ -13,7 +15,7 @@ FRAMERATE="30"
 BITRATE="1000000" # 2 Mbps (adjust as needed for quality vs. bandwidth)
 
 # Define the PID file path
-PID_FILE="/var/run/gst_stream.pid" # <--- !!! Adjust path if needed !!!
+PID_FILE="/var/run/gst_stream.pid"
 
 # --- GStreamer Pipeline ---
 # This pipeline captures video from the libcamera source, encodes it with h264 (hardware),

@@ -11,12 +11,20 @@ RDEPENDS:${PN} = "bash"
 
 SRC_URI += " \
     file://stream_server.sh \
-    file://camera-stream.service \
+    file://camera-stream.in \
 "
 
-SYSTEMD_SERVICE:${PN} = "camera-stream.service"
+SERVICE_NAME = "camera-stream.service"
+SYSTEMD_SERVICE:${PN} = "${SERVICE_NAME}"
+
+TARGET_IP = "192.168.13.20"
+TARGET_PORT = "5000"
 
 do_install() {
+    SERVICE=${WORKDIR}/${SERVICE_NAME}
+    cp ${WORKDIR}/camera-stream.in $SERVICE
+    sed -i "s/##TARGET_PORT##/${TARGET_PORT}/g" $SERVICE
+    sed -i "s/##TARGET_IP##/${TARGET_IP}/g" $SERVICE
     install -d ${D}${bindir}
     install -m 0755 ${WORKDIR}/stream_server.sh ${D}${bindir}/stream_server
     install -d ${D}${systemd_system_unitdir}
@@ -25,5 +33,5 @@ do_install() {
 
 FILES:${PN} += " \
     ${bindir}/stream_server \
-    ${systemd_system_unitdir}/camera-stream.service \
+    ${systemd_system_unitdir}/${SERVICE_NAME} \
 "
