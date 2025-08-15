@@ -7,5 +7,5 @@ iface lo inet loopback
 # The primary network interface
 auto eth0
 iface eth0 inet static
-    address 192.168.13.21
+    address ##LOCAL_IP## 
     netmask 255.255.255.0
