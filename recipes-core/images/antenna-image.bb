@@ -2,6 +2,7 @@
 require image-common.inc
 
 SPEC_TOOLS = " \
-    station-control \
-    crsf-station \
+    antenna-control \
+    camera-server \
+    crsf-antenna \
 "
