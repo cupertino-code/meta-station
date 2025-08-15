@@ -14,24 +14,25 @@ SRC_URI += " \
     file://camera-stream.in \
 "
 
-SERVICE_NAME = "camera-stream.service"
-SYSTEMD_SERVICE:${PN} = "${SERVICE_NAME}"
+SERVICE_NAME = "camera-stream"
+SERVICE_FILE = "${SERVICE_NAME}.service"
+SYSTEMD_SERVICE:${PN} = "${SERVICE_FILE}"
 
 TARGET_IP = "192.168.13.20"
 TARGET_PORT = "5000"
 
+S = "${WORKDIR}"
 do_install() {
-    SERVICE=${WORKDIR}/${SERVICE_NAME}
-    cp ${WORKDIR}/camera-stream.in $SERVICE
-    sed -i "s/##TARGET_PORT##/${TARGET_PORT}/g" $SERVICE
-    sed -i "s/##TARGET_IP##/${TARGET_IP}/g" $SERVICE
-    install -d ${D}${bindir}
-    install -m 0755 ${WORKDIR}/stream_server.sh ${D}${bindir}/stream_server
+    cp camera-stream.in ${SERVICE_FILE}
+    sed -i "s/##TARGET_PORT##/${VIDEO_STREAM_PORT}/g" ${SERVICE_FILE}
+    sed -i "s/##TARGET_IP##/${STATION_IP}/g" ${SERVICE_FILE}
+    install -d ${D}${sysconfdir}/init.d
+    install -m 0755 stream_server.sh ${D}${sysconfdir}/init.d/stream-server
     install -d ${D}${systemd_system_unitdir}
-    install -m 0644 ${WORKDIR}/camera-stream.service ${D}${systemd_system_unitdir}
+    install -m 0644 camera-stream.service ${D}${systemd_system_unitdir}
 }
 
 FILES:${PN} += " \
-    ${bindir}/stream_server \
-    ${systemd_system_unitdir}/${SERVICE_NAME} \
+    ${sysconfdir}/init.d/stream_server \
+    ${systemd_system_unitdir}/${SERVICE_FILE} \
 "
