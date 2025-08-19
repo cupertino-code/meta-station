@@ -1,0 +1,6 @@
+[Match]
+Name=##NETDEV##
+
+[Network]
+DHCP=no
+Address=##LOCAL_IP##/24
