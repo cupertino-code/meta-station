@@ -21,7 +21,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get -y install \
 RUN DEBIAN_FRONTEND=noninteractive apt-get -y install \
     locales sudo
 RUN DEBIAN_FRONTEND=noninteractive apt-get -y install zstd lz4 file
-
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install nano vim 
 # By default, Ubuntu uses dash as an alias for sh. Dash does not support the source command
 # needed for setting up Yocto build environments. Use bash as an alias for sh.
 RUN which dash &> /dev/null && (\
@@ -57,5 +57,16 @@ RUN groupadd -g $host_gid $USER_NAME && useradd -g $host_gid -m -s /bin/bash -u 
 # By default, docker runs as root. However, Yocto builds should not be run as root, but as a 
 # normal user. Hence, we switch to the newly created user embeddeduse.
 USER $USER_NAME
+RUN pip3 install --user  git+https://github.com/xen-troops/moulin
+
+RUN echo "" >> $HOME/.bashrc
+RUN echo "# set PATH so it includes user's private bin if it exists" >> $HOME/.bashrc
+RUN echo "if [ -d \"\$HOME/bin\" ] ; then" >> $HOME/.bashrc
+RUN echo "    PATH=\"\$HOME/bin:$PATH\"" >> $HOME/.bashrc
+RUN echo "fi" >> $HOME/.bashrc
+RUN echo "# set PATH so it includes user's private bin if it exists" >> $HOME/.bashrc
+RUN echo "if [ -d \"\$HOME/.local/bin\" ] ; then" >> $HOME/.bashrc
+RUN echo "    PATH=\"\$HOME/.local/bin:$PATH\"" >> $HOME/.bashrc
+RUN echo "fi" >> $HOME/.bashrc
 
 WORKDIR /public/Work
