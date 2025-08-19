@@ -1,7 +1,11 @@
-# Base this image on core-image-base
+# Image for station side
 require image-common.inc
 
-SPEC_TOOLS = " \
+SPECIFIC_TOOLS = " \
     station-control \
     crsf-station \
+    video-out \
+"
+GSTREAMER:append = " \
+    gstreamer1.0-libav \
 "
