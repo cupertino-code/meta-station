@@ -5,8 +5,8 @@
 # This is usually the IP of your computer or another Raspberry Pi
 TARGET_IP="$1"
 TARGET_PORT="$2"       # The port to stream to (make sure it's not blocked by firewall)
-TARGET_IP=${TARGET_IP:-"192.168.13.20"}
-TARGET_PORT=${TARGET_PORT:-"5000"}
+TARGET_IP=${TARGET_IP:-"192.168.1.1"}
+TARGET_PORT=${TARGET_PORT:-"5600"}
 
 # Video resolution and framerate
 WIDTH="720"
