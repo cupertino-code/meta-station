@@ -7,6 +7,8 @@ LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda
 
 ANTENNA = "${@bb.utils.contains("MACHINE_FEATURES", "antenna", "1", "", d)}"
 
+CRSF_UART ?= "0"
+
 COMPATIBLE_MACHINE = "^rpi$"
 
 GPIO_SHUTDOWN_PIN ??= ""
@@ -20,10 +22,20 @@ do_deploy:append() {
     echo "framebuffer_depth=16" >> $CONFIG
     echo "# Enable DRM VC4 V3D driver" >> $CONFIG
     echo "enable_tvout=1" >>$CONFIG
-    echo "dtoverlay=vc4-fkms-v3d,composite" >> $CONFIG
     echo "disable_fw_kms_setup=1" >> $CONFIG
     if [ x${ANTENNA} = "x1" ]; then
         echo "dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4" >> $CONFIG
         echo "dtoverlay=adv7282m" >> $CONFIG
+    fi
+    if [ x${CRSF_UART} != "x0" ]; then
+        echo "dtoverlay=uart${CRSF_UART}" >> $CONFIG
+        if [ x${ANTENNA} != "x1" ]; then
+            echo "uart_2ndstage=1" >> $CONFIG
+        fi
+    fi
+    if [ x${HDMI_FORCE} = "x1" ]; then
+        echo "hdmi_force_hotplug=1" >> $CONFIG
+        echo "hdmi_group=1" >> $CONFIG
+        echo "hdmi_mode=16" >> $CONFIG
     fi
 }
