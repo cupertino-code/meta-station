@@ -1,0 +1,383 @@
+desc: "Images for antenna and ground control"
+min_ver: "0.24"
+
+variables:
+  # Common build configuration
+  YOCTOS_WORK_DIR: "yocto"
+  DOM0_OS: "zephyr"
+
+  # Raspberry 5 build configuration
+
+  STATION_BUILD_DIR: "build-station"
+  ANTENNA_BUILD_DIR: "build-antenna"
+
+  STATION_IMAGE: "station-image"
+  ANTENNA_IMAGE: "antenna-image"
+
+  ANTENNA_MACHINE: "raspberrypi0-2w"
+#  ANTENNA_MACHINE: "raspberrypi4"
+  STATION_MACHINE: "raspberrypi4"
+
+  VIDEO_STREAM_PORT: "5600"
+  CONTROL_PORT: "5110"
+  CRSF_PORT: "5120"
+  ANTENNA_IP: "192.168.27.72"
+  STATION_IP: "192.168.27.70"
+
+
+common_data:
+  common_yocto_sources: &COMMON_YOCTO_SOURCES
+    - type: git
+      url: "https://git.yoctoproject.org/poky"
+      rev: "e711b2f39a94879812e5d7f721018f911f25ce38"
+    - type: git
+      url: "https://git.openembedded.org/meta-openembedded"
+      rev: "e8fd97d86af86cdcc5a6eb3f301cbaf6a2084943"
+    - type: git
+      url: "https://git.yoctoproject.org/meta-raspberrypi"
+      rev: "1f2045321afd6ef20b457266ac3e97c8577eb1c4"
+    - type: git
+      url: "https://github.com/cupertino-code/meta-station"
+      rev: "scarthgap"
+
+  common_yocto_layers: &COMMON_YOCTO_LAYERS
+    - "../meta-openembedded/meta-oe"
+    - "../meta-openembedded/meta-python"
+    - "../meta-openembedded/meta-multimedia"
+    - "../meta-raspberrypi"
+    - "../meta-station"
+
+  # Conf options for domain that use linux
+  linux_domain_conf: &LINUX_DOMAIN_CONF
+    - [SSTATE_DIR, "${TOPDIR}/../common_data/sstate"]
+#    - [DL_DIR, "${TOPDIR}/../common_data/downloads"]
+    - [DL_DIR, "${TOPDIR}/../../../bbb/build/downloads"]
+    # Init manager
+    - [INIT_MANAGER, "systemd"]
+    # Remove features that we are not used
+    - [DISTRO_FEATURES:remove,
+        "x11 gtk nfc irda zeroconf 3g sysvinit
+         acl alsa argp pcmcia opengl ptest multiarch wayland vulkan"]
+    - [VIDEO_STREAM_PORT, "%{VIDEO_STREAM_PORT}"]
+    - [CONTROL_PORT, "%{CONTROL_PORT}"]
+    - [CRSF_PORT, "%{CRSF_PORT}"]
+    - [ANTENNA_IP, "%{ANTENNA_IP}"]
+    - [STATION_IP, "%{STATION_IP}"]
+    - [ENABLE_UART, "1"]
+    - [ROOT_HOME, "/root"]
+    - [IMAGE_FSTYPES:append, " wic"]
+    - [INHERIT:append, " rm_work"]
+    - [LICENSE_FLAGS_ACCEPTED:append, " synaptics-killswitch commercial"]
+    - [MACHINE_FEATURES:append, "vc4graphics"]
+    - [PACKAGECONFIG:append:pn-gstreamer1.0-plugins-good, " libv4l2"]
+    - [RPI_KERNEL_DEVICETREE:append, " broadcom/bcm2711-rpi-4-b.dtb 
+        broadcom/bcm2710-rpi-zero-2-w.dtb broadcom/bcm2710-rpi-zero-2.dtb"]
+    - ["PREFERRED_VERSION_libgpiod", "1.6.%"]
+components:
+  antenna:
+    build-dir: "%{YOCTOS_WORK_DIR}"
+    sources:
+      - *COMMON_YOCTO_SOURCES
+    builder:
+      type: yocto
+      work_dir: "%{ANTENNA_BUILD_DIR}"
+      conf:
+        - *LINUX_DOMAIN_CONF
+        - [MACHINE, "%{ANTENNA_MACHINE}"]
+        # RPI specific
+        - [MACHINE_FEATURES:append, " antenna"]
+        - [CRSF_UART, "0"]
+        - [NETDEV, "eth0"]
+        - [ENABLE_I2C, "1"]
+        - [SDTV_MODE, "2"]
+        - [SDTV_ASPECT, "2"]
+        - [RPI_KERNEL_DEVICETREE_OVERLAYS:append, "  overlays/adv7282m.dtbo overlays/pwm-2chan.dtbo overlays/pwm.dtbo overlays/pwm1.dtbo overlays/i2c0.dtbo overlays/i2c1.dtbo"]
+        - [PACKAGECONFIG:remove:pn-ffmpeg, "mmal"]
+        - [DISTRO_FEATURES:remove, "gobject-introspection-data"]
+      build_target: "%{ANTENNA_IMAGE}"
+      layers:
+        - *COMMON_YOCTO_LAYERS
+      target_images:
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/%{ANTENNA_IMAGE}-%{ANTENNA_MACHINE}.rootfs.ext3"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/zImage"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2710-rpi-zero-2-w.dtb"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2710-rpi-zero-2.dtb"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2710-rpi-3-b.dtb"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2711-rpi-4-b.dtb"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/bootcode.bin"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/config.txt"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/cmdline.txt"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup.dat"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup_cd.dat"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup_db.dat"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup_x.dat"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup4.dat"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup4cd.dat"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup4db.dat"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup4x.dat"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start.elf"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start_cd.elf"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start_db.elf"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start_x.elf"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start4.elf"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start4db.elf"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start4cd.elf"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start4x.elf"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/adv7282m.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/disable-bt.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/disable-wifi.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/dwc2.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/gpio-ir-tx.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/gpio-ir.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/gpio-key.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/gpio-poweroff.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/gpio-shutdown.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/i2c0.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/i2c1.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/i2c-gpio.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/i2c-rtc.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/miniuart-bt.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/overlay_map.dtb"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/pps-gpio.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/rpi-poe.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/pwm.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/pwm1.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/pwm-2chan.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/uart0-pi5.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/uart0.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/uart1-pi5.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/uart1.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/uart2-pi5.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/uart2.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/uart3-pi5.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/uart3.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/uart4-pi5.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/uart4.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/uart5.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/vc4-fkms-v3d-pi4.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/vc4-fkms-v3d.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/vc4-kms-v3d-pi4.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/vc4-kms-v3d-pi5.dtbo"
+        - "tmp/deploy/images/%{ANTENNA_MACHINE}/vc4-kms-v3d.dtbo"
+
+  station:
+    build-dir: "%{YOCTOS_WORK_DIR}"
+    sources:
+      - *COMMON_YOCTO_SOURCES
+    builder:
+      type: yocto
+      work_dir: "%{STATION_BUILD_DIR}"
+      conf:
+        - *LINUX_DOMAIN_CONF
+        - [MACHINE, "%{STATION_MACHINE}"]
+        - [MACHINE_FEATURES:append, " station"]
+        - [CRSF_UART, "2"]
+        - [NETDEV, "eth0"]
+        - [HDMI_FORCE, "1"]
+        - [DISPLAY_WIDTH, "1024"]
+        - [DISPLAY_HEIGHT, "576"]
+        - [DISTRO_FEATURES:append, " gobject-introspection-data"]
+      build_target: "%{STATION_IMAGE}"
+      layers:
+        - *COMMON_YOCTO_LAYERS
+      target_images:
+        - "tmp/deploy/images/%{STATION_MACHINE}/%{STATION_IMAGE}-%{STATION_MACHINE}.rootfs.ext3"
+        - "tmp/deploy/images/%{STATION_MACHINE}/zImage"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bcm2710-rpi-zero-2-w.dtb"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bcm2710-rpi-zero-2.dtb"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bcm2710-rpi-3-b.dtb"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bcm2711-rpi-4-b.dtb"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/bootcode.bin"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/config.txt"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/cmdline.txt"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup.dat"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup_cd.dat"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup_db.dat"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup_x.dat"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup4.dat"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup4cd.dat"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup4db.dat"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup4x.dat"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start.elf"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start_cd.elf"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start_db.elf"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start_x.elf"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start4.elf"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start4db.elf"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start4cd.elf"
+        - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start4x.elf"
+        - "tmp/deploy/images/%{STATION_MACHINE}/disable-wifi.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/dwc2.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/gpio-ir-tx.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/gpio-ir.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/gpio-key.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/gpio-poweroff.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/gpio-shutdown.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/i2c-gpio.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/i2c-rtc.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/miniuart-bt.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/overlay_map.dtb"
+        - "tmp/deploy/images/%{STATION_MACHINE}/pps-gpio.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/rpi-poe.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/uart0-pi5.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/uart0.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/uart1-pi5.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/uart1.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/uart2-pi5.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/uart2.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/uart3-pi5.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/uart3.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/uart4-pi5.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/uart4.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/uart5.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/vc4-fkms-v3d-pi4.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/vc4-fkms-v3d.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/vc4-kms-v3d-pi4.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/vc4-kms-v3d-pi5.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/vc4-kms-v3d.dtbo"
+
+images:
+  antenna:
+    type: gpt
+    desc: "Antenna side image"
+    sector_size: 512
+    partitions:
+      boot:
+        gpt_type: ebd0a0a2-b9e5-4433-87c0-68b6b72699c7
+        type: vfat
+        size: 512 MiB
+        items:
+          "bootcode.bin": "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/bootcode.bin"
+          "config.txt":   "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/config.txt"
+          "cmdline.txt":  "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/cmdline.txt"
+          "fixup.dat":    "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup.dat"
+          "fixup_cd.dat": "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup_cd.dat"
+          "fixup_db.dat": "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup_db.dat"
+          "fixup_x.dat":  "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup_x.dat"
+          "fixup4.dat":   "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup4.dat"
+          "fixup4cd.dat": "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup4cd.dat"
+          "fixup4db.dat": "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup4db.dat"
+          "fixup4x.dat":  "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/fixup4x.dat"
+          "start.elf":    "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start.elf"
+          "start_cd.elf": "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start_cd.elf"
+          "start_db.elf": "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start_db.elf"
+          "start_x.elf":  "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start_x.elf"
+          "start4.elf":   "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start4.elf"
+          "start4db.elf": "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start4db.elf"
+          "start4cd.elf": "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start4cd.elf"
+          "start4x.elf":  "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/start4x.elf"
+          "kernel7.img":  "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/zImage"
+          "bcm2710-rpi-zero-2-w.dtb":               "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2710-rpi-zero-2-w.dtb"
+          "bcm2710-rpi-zero-2.dtb":                 "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2710-rpi-zero-2.dtb"
+          "bcm2710-rpi-3-b.dtb":                    "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2710-rpi-3-b.dtb"
+          "bcm2711-rpi-4-b.dtb":                    "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2711-rpi-4-b.dtb"
+          "overlays/adv7282m.dtbo":                 "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/adv7282m.dtbo"
+          "overlays/disable-bt.dtbo":               "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/disable-bt.dtbo"
+          "overlays/disable-wifi.dtbo":             "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/disable-wifi.dtbo"
+          "overlays/dwc2.dtbo":                     "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/dwc2.dtbo"
+          "overlays/gpio-ir-tx.dtbo":               "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/gpio-ir-tx.dtbo"
+          "overlays/gpio-ir.dtbo":                  "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/gpio-ir.dtbo"
+          "overlays/gpio-key.dtbo":                 "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/gpio-key.dtbo"
+          "overlays/gpio-poweroff.dtbo":            "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/gpio-poweroff.dtbo"
+          "overlays/gpio-shutdown.dtbo":            "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/gpio-shutdown.dtbo"
+          "overlays/i2c0.dtbo":                     "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/i2c0.dtbo"
+          "overlays/i2c1.dtbo":                     "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/i2c1.dtbo"
+          "overlays/i2c-gpio.dtbo":                 "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/i2c-gpio.dtbo"
+          "overlays/i2c-rtc.dtbo":                  "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/i2c-rtc.dtbo"
+          "overlays/miniuart-bt.dtbo":              "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/miniuart-bt.dtbo"
+          "overlays/overlay_map.dtb":               "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/overlay_map.dtb"
+          "overlays/pps-gpio.dtbo":                 "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/pps-gpio.dtbo"
+          "overlays/rpi-poe.dtbo":                  "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/rpi-poe.dtbo"
+          "overlays/pwm.dtbo":                      "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/pwm.dtbo"
+          "overlays/pwm1.dtbo":                     "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/pwm1.dtbo"
+          "overlays/pwm2-chan.dtbo":                "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/pwm-2chan.dtbo"
+          "overlays/uart0-pi5.dtbo":                "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/uart0-pi5.dtbo"
+          "overlays/uart0.dtbo":                    "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/uart0.dtbo"
+          "overlays/uart1-pi5.dtbo":                "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/uart1-pi5.dtbo"
+          "overlays/uart1.dtbo":                    "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/uart1.dtbo"
+          "overlays/uart2-pi5.dtbo":                "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/uart2-pi5.dtbo"
+          "overlays/uart2.dtbo":                    "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/uart2.dtbo"
+          "overlays/uart3-pi5.dtbo":                "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/uart3-pi5.dtbo"
+          "overlays/uart3.dtbo":                    "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/uart3.dtbo"
+          "overlays/uart4-pi5.dtbo":                "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/uart4-pi5.dtbo"
+          "overlays/uart4.dtbo":                    "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/uart4.dtbo"
+          "overlays/uart5.dtbo":                    "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/uart5.dtbo"
+          "overlays/vc4-fkms-v3d-pi4.dtbo":         "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/vc4-fkms-v3d-pi4.dtbo"
+          "overlays/vc4-fkms-v3d.dtbo":             "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/vc4-fkms-v3d.dtbo"
+          "overlays/vc4-kms-v3d-pi4.dtbo":          "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/vc4-kms-v3d-pi4.dtbo"
+          "overlays/vc4-kms-v3d-pi5.dtbo":          "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/vc4-kms-v3d-pi5.dtbo"
+          "overlays/vc4-kms-v3d.dtbo":              "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/vc4-kms-v3d.dtbo"
+      rootfs:
+          gpt_type: B921B045-1DF0-41C3-AF44-4C6F280D3FAE # Linux aarch64 root
+          type: raw_image
+          image_path: "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/%{ANTENNA_IMAGE}-%{ANTENNA_MACHINE}.rootfs.ext3"
+
+  station:
+    type: gpt
+    desc: "Station side image"
+    sector_size: 512
+    partitions:
+      boot:
+        gpt_type: ebd0a0a2-b9e5-4433-87c0-68b6b72699c7
+        type: vfat
+        size: 512 MiB
+        items:
+          "bootcode.bin": "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/bootcode.bin"
+          "config.txt":   "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/config.txt"
+          "cmdline.txt":  "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/cmdline.txt"
+          "fixup.dat":    "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup.dat"
+          "fixup_cd.dat": "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup_cd.dat"
+          "fixup_db.dat": "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup_db.dat"
+          "fixup_x.dat":  "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup_x.dat"
+          "fixup4.dat":   "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup4.dat"
+          "fixup4cd.dat": "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup4cd.dat"
+          "fixup4db.dat": "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup4db.dat"
+          "fixup4x.dat":  "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/fixup4x.dat"
+          "start.elf":    "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start.elf"
+          "start_cd.elf": "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start_cd.elf"
+          "start_db.elf": "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start_db.elf"
+          "start_x.elf":  "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start_x.elf"
+          "start4.elf":   "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start4.elf"
+          "start4db.elf": "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start4db.elf"
+          "start4cd.elf": "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start4cd.elf"
+          "start4x.elf":  "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start4x.elf"
+          "kernel7.img":  "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/zImage"
+          "bcm2710-rpi-zero-2-w.dtb":               "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bcm2710-rpi-zero-2-w.dtb"
+          "bcm2710-rpi-zero-2.dtb":                 "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bcm2710-rpi-zero-2.dtb"
+          "bcm2710-rpi-3-b.dtb":                    "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bcm2710-rpi-3-b.dtb"
+          "bcm2711-rpi-4-b.dtb":                    "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bcm2711-rpi-4-b.dtb"
+          "overlays/disable-bt.dtbo":               "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/disable-bt.dtbo"
+          "overlays/disable-wifi.dtbo":             "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/disable-wifi.dtbo"
+          "overlays/dwc2.dtbo":                     "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/dwc2.dtbo"
+          "overlays/gpio-ir-tx.dtbo":               "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/gpio-ir-tx.dtbo"
+          "overlays/gpio-ir.dtbo":                  "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/gpio-ir.dtbo"
+          "overlays/gpio-key.dtbo":                 "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/gpio-key.dtbo"
+          "overlays/gpio-poweroff.dtbo":            "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/gpio-poweroff.dtbo"
+          "overlays/gpio-shutdown.dtbo":            "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/gpio-shutdown.dtbo"
+          "overlays/i2c-gpio.dtbo":                 "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/i2c-gpio.dtbo"
+          "overlays/i2c-rtc.dtbo":                  "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/i2c-rtc.dtbo"
+          "overlays/miniuart-bt.dtbo":              "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/miniuart-bt.dtbo"
+          "overlays/overlay_map.dtb":               "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/overlay_map.dtb"
+          "overlays/pps-gpio.dtbo":                 "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/pps-gpio.dtbo"
+          "overlays/rpi-poe.dtbo":                  "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/rpi-poe.dtbo"
+          "overlays/uart0-pi5.dtbo":                "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/uart0-pi5.dtbo"
+          "overlays/uart0.dtbo":                    "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/uart0.dtbo"
+          "overlays/uart1-pi5.dtbo":                "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/uart1-pi5.dtbo"
+          "overlays/uart1.dtbo":                    "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/uart1.dtbo"
+          "overlays/uart2-pi5.dtbo":                "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/uart2-pi5.dtbo"
+          "overlays/uart2.dtbo":                    "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/uart2.dtbo"
+          "overlays/uart3-pi5.dtbo":                "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/uart3-pi5.dtbo"
+          "overlays/uart3.dtbo":                    "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/uart3.dtbo"
+          "overlays/uart4-pi5.dtbo":                "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/uart4-pi5.dtbo"
+          "overlays/uart4.dtbo":                    "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/uart4.dtbo"
+          "overlays/uart5.dtbo":                    "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/uart5.dtbo"
+          "overlays/vc4-fkms-v3d-pi4.dtbo":         "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/vc4-fkms-v3d-pi4.dtbo"
+          "overlays/vc4-fkms-v3d.dtbo":             "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/vc4-fkms-v3d.dtbo"
+          "overlays/vc4-kms-v3d-pi4.dtbo":          "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/vc4-kms-v3d-pi4.dtbo"
+          "overlays/vc4-kms-v3d-pi5.dtbo":          "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/vc4-kms-v3d-pi5.dtbo"
+          "overlays/vc4-kms-v3d.dtbo":              "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/vc4-kms-v3d.dtbo"
+      rootfs:
+          gpt_type: B921B045-1DF0-41C3-AF44-4C6F280D3FAE # Linux aarch64 root
+          type: raw_image
+          image_path: "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/%{STATION_IMAGE}-%{STATION_MACHINE}.rootfs.ext3"
+
