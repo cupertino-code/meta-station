@@ -6,6 +6,7 @@ LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
 
 ANTENNA = "${@bb.utils.contains("MACHINE_FEATURES", "antenna", "1", "", d)}"
+STATION = "${@bb.utils.contains("MACHINE_FEATURES", "station", "1", "", d)}"
 
 CRSF_UART ?= "0"
 
@@ -29,7 +30,7 @@ do_deploy:append() {
     fi
     if [ x${CRSF_UART} != "x0" ]; then
         echo "dtoverlay=uart${CRSF_UART}" >> $CONFIG
-        if [ x${ANTENNA} != "x1" ]; then
+        if [ x${STATION} = "x1" ]; then
             echo "uart_2ndstage=1" >> $CONFIG
         fi
     fi
@@ -37,5 +38,8 @@ do_deploy:append() {
         echo "hdmi_force_hotplug=1" >> $CONFIG
         echo "hdmi_group=1" >> $CONFIG
         echo "hdmi_mode=16" >> $CONFIG
+    fi
+    if [ x${STATION} = "x1" ]; then
+        echo "display_auto_detect=1" >> $CONFIG
     fi
 }
