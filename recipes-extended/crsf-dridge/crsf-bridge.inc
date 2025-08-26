@@ -43,3 +43,12 @@ FILES:${PN} += "${bindir}/${TARGET} ${systemd_system_unitdir}/${SERVICE_FILE} /r
 SRC_URI += " \
     file://crsf.sh.in \
 "
+CMDLINE = "${CONN_PARAMS} -u ${UART}"
+
+do_install:append() {
+    cp crsf.sh.in crsf.sh
+    sed -i "s/##COMDLINE##/${CMDLINE}/g" crsf.sh
+    install -m 0755 crsf.sh ${D}/root
+}
+
+FILES:${PN} += " /root/crsf.sh"
