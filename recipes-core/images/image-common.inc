@@ -58,7 +58,7 @@ DEV_TOOLS = " \
 IMAGE_FEATURES += "ssh-server-dropbear"
 
 # Password for root user
-EXTRA_USERS_PARAMS = "usermod -P root root;"
+#EXTRA_USERS_PARAMS = "usermod -P root root;"
 
 IMAGE_INSTALL:append = " \
     ${GSTREAMER} \
