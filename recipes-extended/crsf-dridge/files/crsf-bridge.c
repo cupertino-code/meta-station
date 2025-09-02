@@ -155,7 +155,7 @@ int parser(struct parser_state *parser, uint8_t byte)
         case STATE_LENGTH:
             if (byte < 3 || byte > (CRSF_MAX_PAYLOAD_LEN + 2)) {
                 parser->length = 0;
-                parser->state = STATE_LENGTH;
+                parser->state = STATE_SOURCE;
                 break;
             }
             parser->expected_length = byte;
