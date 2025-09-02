@@ -1,0 +1,26 @@
+SUMMARY = ""
+
+LICENSE = "MIT"
+LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
+
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
+
+inherit systemd
+
+TARGET = "rtp_viewer_cli.py"
+
+#RDEPENDS_${PN} += "python3-pygobject rpi-gpio"
+DEPENDS += "python3-pygobject rpi-gpio"
+
+SRC_URI = " \
+    file://${TARGET} \
+"
+
+S = "${WORKDIR}"
+
+do_install() {
+    install -d ${D}/root
+    install -m 0755 ${TARGET} ${D}/root
+}
+
+FILES:${PN} += "/root/${TARGET}"
