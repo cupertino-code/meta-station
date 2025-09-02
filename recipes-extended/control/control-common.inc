@@ -9,7 +9,7 @@ inherit systemd
 
 SRC_URI = " \
     file://Makefile \
-    file://crc8.c \
+    file://utils.c \
     file://protocol.h \
     file://common.h \
 "

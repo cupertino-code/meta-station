@@ -183,6 +183,7 @@ static void send_status(int fd)
     uint8_t *crc = buffer + sizeof(struct rotator_protocol) + sizeof(struct rotator_status);
     struct timespec ts;
 
+    msg->start_byte = PROTOCOL_START_BYTE;
     msg->version = PROTOCOL_VERSION;
     msg->type = MESSAGE_TYPE_STATUS;
     msg->length = sizeof(struct rotator_status);
@@ -200,6 +201,7 @@ static void send_status(int fd)
     ssize_t bytes_written =
         write(fd, buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_status) + 1);
     LOG2("Sent %d bytes message: length=%d, CRC=0x%x\n", bytes_written, msg->length, *crc);
+    dump(buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_status) + 1);
     if (bytes_written < 0)
         perror("Error writing to pipe");
 }
@@ -244,14 +246,16 @@ void process_command(struct rotator_command *command)
 
 int parse_byte(uint8_t byte)
 {
+#define RESET state = STATE_START_BYTE
     static enum {
+        STATE_START_BYTE,
         STATE_VERSION,
         STATE_TYPE,
         STATE_LENGTH,
         STATE_TIMESTAMP,
         STATE_PAYLOAD,
         STATE_CRC
-    } state = STATE_VERSION;
+    } state = STATE_START_BYTE;
     static int expected_length;
     static int current_length;
     static struct message {
@@ -265,11 +269,19 @@ int parse_byte(uint8_t byte)
     int ret = 0;
     
     switch (state) {
+        case STATE_START_BYTE:
+            if (byte != PROTOCOL_START_BYTE)
+                break;
+            message.protocol_msg.start_byte = byte;
+            expected_length = 1;
+            state = STATE_VERSION;
+            break;
         case STATE_VERSION:
             wrong_message = 0;
             memset(&message, 0, sizeof(struct message));
             if (byte != PROTOCOL_VERSION) {
                 fprintf(stderr, "Unsupported protocol version: %d\n", byte);
+                RESET;
                 break;
             }
             message.protocol_msg.version = byte;
@@ -279,7 +291,7 @@ int parse_byte(uint8_t byte)
         case STATE_TYPE:
             if (byte != MESSAGE_TYPE_STATUS && byte != MESSAGE_TYPE_COMMAND) {
                 fprintf(stderr, "Unsupported message type: %d\n", byte);
-                state = STATE_VERSION; // reset state
+                RESET; // reset state
                 break;
             }
             if (byte != MESSAGE_TYPE_COMMAND) {
@@ -298,7 +310,7 @@ int parse_byte(uint8_t byte)
             if (expected_length == current_length) {
                 if (message.protocol_msg.length != sizeof(struct rotator_command)) {
                     fprintf(stderr, "Invalid payload length: %d\n", message.protocol_msg.length);
-                    state = STATE_VERSION; // reset state
+                    state = STATE_START_BYTE; // reset state
                     break;
                 }
                 state = STATE_TIMESTAMP;
@@ -312,7 +324,7 @@ int parse_byte(uint8_t byte)
             if (expected_length == current_length) {
                 if (message.protocol_msg.length != sizeof(struct rotator_command)) {
                     fprintf(stderr, "Invalid payload length: %d\n", message.protocol_msg.length);
-                    state = STATE_VERSION; // reset state
+                    RESET; // reset state
                     break;
                 }
                 state = STATE_PAYLOAD;
@@ -332,14 +344,14 @@ int parse_byte(uint8_t byte)
         }
         case STATE_CRC:
         {
-            state = STATE_VERSION;
+            RESET;
             if (wrong_message)
                 break;
             uint8_t *buf = (uint8_t *)&message;
             uint8_t crc = crc8_data(&buf[offsetof(struct rotator_protocol, timestamp)],
                 message.protocol_msg.length + 4);
             if (byte != crc) {
-                fprintf(stderr, "Invalid CRC\n");
+                fprintf(stderr, "Have %02x Expected %02x Invalid CRC\n", byte, crc);
                 break;
             }
             ret = 1;
@@ -349,7 +361,7 @@ int parse_byte(uint8_t byte)
     }
     return ret;
 }
-
+#undef RESET
 void prepare_pwm()
 {
     char path[256];
@@ -414,7 +426,7 @@ void process_connection(int tcp_sock)
             if (errno == EINTR) {
                 continue;
             }
-            break;
+            continue;
         }
 
         if (fds[0].revents & POLLIN) {
@@ -427,6 +439,9 @@ void process_connection(int tcp_sock)
                     }
                 }
                 LOG2("Received %zd bytes\n", bytes_read);
+            } else {
+                printf("Zero bytes received\n");
+                break;
             }
         }
         if (!status_sent) {
@@ -434,7 +449,7 @@ void process_connection(int tcp_sock)
             status_sent = 1;
         }
     }
-
+    printf("Disconnecting...\n");
     close(tcp_sock);
 }
 

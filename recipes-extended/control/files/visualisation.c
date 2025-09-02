@@ -36,7 +36,6 @@ static void *thread(void *arg MAYBE_UNUSED)
         printf ("Error: can't open framebuffer device.\n");
         exit (1);
     }
-    printf ("The framebuffer device was opened successfully\n");
 
     if (ioctl (fbfd, FBIOGET_FSCREENINFO, &finfo)) {
         printf ("Error reading fixed information\n");
@@ -50,7 +49,7 @@ static void *thread(void *arg MAYBE_UNUSED)
         exit (3);
     }
     // print info about the buffer
-    printf ("%dx%d, %dbpp\n", vinfo.xres, vinfo.yres, vinfo.bits_per_pixel);
+    LOG1("Frame buffer %dx%d, %dbpp\n", vinfo.xres, vinfo.yres, vinfo.bits_per_pixel);
 
     // calculates size
     screensize = vinfo.xres * vinfo.yres * vinfo.bits_per_pixel / 8;
@@ -69,30 +68,6 @@ static void *thread(void *arg MAYBE_UNUSED)
         close (fbfd);
         exit(4);
     }
-    uint16_t color[3] = {
-        RGB2COLOR (0x1f, 0, 0),
-        RGB2COLOR (0, 0x1f, 0),
-        RGB2COLOR (0, 0, 0x1f)
-    };
-    // Розраховуємо позицію пікселя для запису (наприклад, x=100, y=100)
-    int line_width = vinfo.xres * (vinfo.bits_per_pixel / 8);
-    for (int i = 0; i < 3; i++){
-        long offset = (100 + i*100 + vinfo.xoffset) * (vinfo.bits_per_pixel / 8) + (100 + vinfo.yoffset) * line_width;
-        // Записуємо дані пікселя (наприклад, синій колір)
-        if (vinfo.bits_per_pixel == 32) {
-            *(int *)(fbp + offset) = 0x000000FF; // ARGB
-        } else if (vinfo.bits_per_pixel == 16) {
-            uint16_t *ptr;
-            for (int y = 0; y < 100; y++) {
-                ptr = (uint16_t *)(fbp + offset);
-                for (int x = 0; x < 100; x++) {
-                    ptr[x] = color[i];
-                }
-                offset += line_width;
-            }
-        }
-    }
-    printf ("The framebuffer device was successfully mapped to memory\n");
 
     surface = cairo_image_surface_create_for_data (fbp, CAIRO_FORMAT_RGB16_565, 
         vinfo.xres, vinfo.yres, finfo.line_length);
@@ -112,7 +87,7 @@ static void *thread(void *arg MAYBE_UNUSED)
         temp_angle = antenna_status.angle;
         temp_power = antenna_status.power_status;
         cairo_set_source_rgb (temp_cr, 0, 0, 0);
-        cairo_rectangle (temp_cr, 0, 0, AREA_WIDTH, AREA_HEIGHT);
+        cairo_rectangle (temp_cr, 0, 0, 280, 280);
         cairo_fill (temp_cr);
         cairo_set_source_rgb (temp_cr, 0.5, 0.5, 0.5);
         cairo_set_line_width (temp_cr, 1);

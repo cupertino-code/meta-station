@@ -38,6 +38,8 @@
 
 #define BUFFER_SIZE 100
 
+#define STATUS_TIMEOUT 2000
+
 struct buffer {
     struct rotator_protocol protocol_msg;
     union protocol {
@@ -113,6 +115,7 @@ struct gpio_data {
 };
 
 static volatile int run = 0;
+static uint64_t status_timestamp = 0;
 
 struct antenna_status antenna_status;
 
@@ -305,6 +308,7 @@ static void send_message(struct gpio_data *data)
 
     if (!antenna_status.connect_status)
         return;
+    msg->start_byte = PROTOCOL_START_BYTE;
     msg->version = PROTOCOL_VERSION;
     msg->type = MESSAGE_TYPE_COMMAND;
     msg->length = sizeof(struct rotator_command);
@@ -322,6 +326,7 @@ static void send_message(struct gpio_data *data)
         sizeof(struct rotator_protocol) + sizeof(struct rotator_command) + 1);
 
     LOG2("Sent %d bytes message: length=%d, CRC=0x%x\n", bytes_written, msg->length, *crc);
+    dump(buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_command) + 1);
     if (bytes_written < 0)
         perror("Error writing to pipe");
 }
@@ -336,27 +341,37 @@ void process_message(struct buffer *buf)
     }
 }
 
-void parse_byte(uint8_t byte)
+#define RESET state = STATE_START_BYTE
+int parse_byte(uint8_t byte)
 {
     static enum {
+        STATE_START_BYTE,
         STATE_VERSION,
         STATE_TYPE,
         STATE_LENGTH,
         STATE_TIMESTAMP,
         STATE_PAYLOAD,
         STATE_CRC
-    } state = STATE_VERSION;
+    } state = STATE_START_BYTE;
     static int expected_length;
     static int current_length;
     static struct buffer buffer;
     static int wrong_message = 0;
     
     switch (state) {
+        case STATE_START_BYTE:
+            if (byte != PROTOCOL_START_BYTE)
+                break;
+            buffer.protocol_msg.start_byte = byte;
+            expected_length = 1;
+            state = STATE_VERSION;
+            break;
         case STATE_VERSION:
             wrong_message = 0;
             memset(&buffer, 0, sizeof(struct buffer));
             if (byte != PROTOCOL_VERSION) {
                 fprintf(stderr, "Unsupported protocol version: %d\n", byte);
+                RESET;
                 break;
             }
             buffer.protocol_msg.version = byte;
@@ -366,8 +381,8 @@ void parse_byte(uint8_t byte)
         case STATE_TYPE:
             if (byte != MESSAGE_TYPE_STATUS && byte != MESSAGE_TYPE_COMMAND) {
                 fprintf(stderr, "Unsupported message type: %d\n", byte);
-                state = STATE_VERSION; // reset state
-                return;
+                RESET; // reset state
+                break;
             }
             if (byte != MESSAGE_TYPE_STATUS) {
                 fprintf(stderr, "Type status only allowed here\n");
@@ -385,7 +400,7 @@ void parse_byte(uint8_t byte)
             if (expected_length == current_length) {
                 if (buffer.protocol_msg.length != sizeof(struct rotator_status)) {
                     fprintf(stderr, "Invalid payload length: %d\n", buffer.protocol_msg.length);
-                    state = STATE_VERSION; // reset state
+                    RESET; // reset state
                     break;
                 }
                 state = STATE_TIMESTAMP;
@@ -414,23 +429,23 @@ void parse_byte(uint8_t byte)
         }
         case STATE_CRC:
         {
-            if (wrong_message) {
-                state = STATE_VERSION; // reset state
+            RESET; // reset state
+            if (wrong_message)
                 break;
-            }
             uint8_t *buf = (uint8_t *)&buffer.protocol_msg;
             uint8_t crc = crc8_data(&buf[offsetof(struct rotator_protocol, timestamp)],
                                     buffer.protocol_msg.length + 4);
             if (byte != crc) {
                 fprintf(stderr, "Invalid CRC\n");
-            } else {
-                process_message(&buffer);
+                break;
             }
-            state = STATE_VERSION;
-            break;
+            process_message(&buffer);
+            return 1;
         }
     }
+    return 0;
 }
+#undef RESET
 
 int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
 {
@@ -473,7 +488,7 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
         antenna_status.connect_status = 1;
         send_message(data);
         while (antenna_status.connect_status) {
-            char buffer[BUFFER_SIZE];
+            uint8_t buffer[BUFFER_SIZE];
             ssize_t bytes_read;
 
             struct pollfd fds[2];
@@ -488,6 +503,20 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
                 if (ret < 0) {
                     perror("Error polling");
                     break;
+                }
+                if (ret == 0) {
+                    if (status_timestamp) {
+                        struct timespec ts;
+                        uint64_t timestamp;
+
+                        clock_gettime(CLOCK_MONOTONIC, &ts);
+                        timestamp = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+                        if (timestamp - status_timestamp > STATUS_TIMEOUT) {
+                            antenna_status.connect_status = 0;
+                            printf("Status timeout\n");
+                            break;
+                        }
+                    }
                 }
 
                 if (fds[0].revents & POLLIN) {
@@ -505,9 +534,15 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
                     bytes_read = read(client_sock, buffer, sizeof(buffer));
                     if (bytes_read > 0) {
                         for (ssize_t i = 0; i < bytes_read; i++) {
-                            parse_byte(buffer[i]);
+                            if (parse_byte(buffer[i])) {
+                                struct timespec ts;
+
+                                clock_gettime(CLOCK_MONOTONIC, &ts);
+                                status_timestamp = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+                            }
                         }
                         LOG2("Received %d bytes from antenna\n", bytes_read);
+                        dump(buffer, bytes_read);
                     } else if (bytes_read == 0) {
                         printf("TCP peer closed the connection.\n");
                         antenna_status.connect_status = 0;
@@ -515,7 +550,6 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
                     }
                 }
             }
-
         }
         antenna_status.connect_status = 0;
 
