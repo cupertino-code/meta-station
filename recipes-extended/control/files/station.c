@@ -389,24 +389,18 @@ int parse_byte(uint8_t byte)
                 wrong_message = 1;
             }
             buffer.protocol_msg.type = byte;
-            expected_length = 2;
-            current_length = 0;
-            buffer.protocol_msg.length = 0;
             state = STATE_LENGTH;
             break;
         case STATE_LENGTH:
-            buffer.protocol_msg.length = byte << 8 | buffer.protocol_msg.length >> 8;
-            current_length++;
-            if (expected_length == current_length) {
-                if (buffer.protocol_msg.length != sizeof(struct rotator_status)) {
-                    fprintf(stderr, "Invalid payload length: %d\n", buffer.protocol_msg.length);
-                    RESET; // reset state
-                    break;
-                }
-                state = STATE_TIMESTAMP;
-                expected_length = 4; // 4 bytes for timestamp
-                current_length = 0;
+            buffer.protocol_msg.length = byte;
+            if (buffer.protocol_msg.length != sizeof(struct rotator_status)) {
+                fprintf(stderr, "Invalid payload length: %d\n", buffer.protocol_msg.length);
+                RESET; // reset state
+                break;
             }
+            state = STATE_TIMESTAMP;
+            expected_length = 4; // 4 bytes for timestamp
+            current_length = 0;
             break;
         case STATE_TIMESTAMP:
             buffer.protocol_msg.timestamp = byte << 24 | buffer.protocol_msg.timestamp >> 8;
