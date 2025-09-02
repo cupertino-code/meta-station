@@ -10,7 +10,7 @@ struct PACKED rotator_protocol {
     uint8_t start_byte;     // Start_byte
     uint8_t version;        // Protocol version
     uint8_t type;           // Message type
-    uint16_t length;        // Length of the payload
+    uint8_t length;         // Length of the payload
     uint32_t timestamp;     // Timestamp of the message
     uint8_t payload[0];     // Payload data
 };
