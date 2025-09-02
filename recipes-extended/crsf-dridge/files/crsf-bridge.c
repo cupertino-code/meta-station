@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 #include <poll.h>
 #include <getopt.h>
+#include <time.h>
 #include "circ_buf.h"
 #include "crsf_protocol.h"
 
@@ -130,6 +131,19 @@ void parser_init(struct parser_state *parser)
 
 int parser(struct parser_state *parser, uint8_t byte)
 {
+    struct timespec ts;
+    uint64_t timestamp;
+    static uint64_t last_timestamp = 0;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    timestamp = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+    if (last_timestamp) {
+        if (parser->state != STATE_SOURCE && (timestamp - last_timestamp) > 1) {
+            parser->state = STATE_SOURCE;
+        }
+    }
+    last_timestamp = timestamp;
+
     switch (parser->state) {
         case STATE_SOURCE:
             if (byte == CRSF_ADDRESS_RADIO_TRANSMITTER ||
