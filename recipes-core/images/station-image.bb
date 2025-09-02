@@ -6,6 +6,16 @@ SPECIFIC_TOOLS = " \
     crsf-station \
     video-out \
 "
+
 GSTREAMER:append = " \
     gstreamer1.0-libav \
+"
+
+PYTHON = " \
+    python3 \
+    python3-pygobject \
+"
+
+IMAGE_INSTALL:append = " \
+    ${PYTHON} \
 "
