@@ -1,4 +1,21 @@
 #include <stdint.h>
+#include <stdio.h>
+#include "common.h"
+
+void dump(uint8_t *buf, int len)
+{
+	if (verbose <= 2)
+		return;
+	int count = 0;
+	for (int i = 0; i < len; i++) {
+		if (count == 16) {
+			count = 0;
+			puts("");
+		}
+		printf(" %02x", buf[i]);
+	}
+	puts("");
+}
 
 static uint8_t crc8_dvb_s2(uint8_t crc, uint8_t a)
 {

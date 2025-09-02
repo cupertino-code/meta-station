@@ -20,7 +20,11 @@ struct antenna_status {
 
 extern struct antenna_status antenna_status;
 
+void dump(uint8_t *buf, int len);
+uint8_t crc8_data(const uint8_t *data, int len);
+
 #define MAYBE_UNUSED    __attribute__((unused))
+#define PACKED __attribute__((packed))
 
 #ifndef CLOCK_MONOTONIC
 #define CLOCK_MONOTONIC 1
