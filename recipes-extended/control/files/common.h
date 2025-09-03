@@ -16,6 +16,7 @@ struct antenna_status {
     int angle;
     int power_status;
     int connect_status;
+    int vbat;
 };
 
 extern struct antenna_status antenna_status;

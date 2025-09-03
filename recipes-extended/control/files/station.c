@@ -338,6 +338,7 @@ void process_message(struct buffer *buf)
         antenna_status.angle = buf->payload.status.angle;
         antenna_status.power_status = buf->payload.status.status;
         antenna_status.updated = 1;
+        antenna_status.vbat = buf->payload.status.vbat;
     }
 }
 
