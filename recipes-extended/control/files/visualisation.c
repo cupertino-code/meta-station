@@ -138,10 +138,18 @@ static void *thread(void *arg MAYBE_UNUSED)
         cairo_text_extents (temp_cr, buf, &te);
         cairo_move_to (temp_cr, 20 - te.x_bearing, y - te.y_bearing);
         cairo_show_text (temp_cr, buf);
+        y += te.height + 10;
         if (!antenna_status.connect_status) {
-            y += te.height + 10;
             cairo_set_source_rgb (temp_cr, 0.8, 0, 0);
             sprintf(buf, "NO CONNECTION");
+            cairo_text_extents (temp_cr, buf, &te);
+            cairo_move_to (temp_cr, 20 - te.x_bearing, y - te.y_bearing);
+            cairo_show_text (temp_cr, buf);
+        }
+        y += te.height + 10;
+        if (antenna_status.updated) {
+            sprintf(buf, "Battery  %d.%d", antenna_status.vbat / 1000, antenna_status.vbat % 1000 / 100);
+            cairo_set_source_rgb (temp_cr, 0.8, 0.8, 0.8);
             cairo_text_extents (temp_cr, buf, &te);
             cairo_move_to (temp_cr, 20 - te.x_bearing, y - te.y_bearing);
             cairo_show_text (temp_cr, buf);
