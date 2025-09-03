@@ -24,6 +24,7 @@ struct PACKED rotator_command {
 struct PACKED rotator_status {
     int16_t angle;          // Current angle of the antenna
     uint8_t status;         // Status flags (e.g., error states)
+    uint16_t vbat;          // Antenna battery voltage mV
 };
 
 #define PROTOCOL_START_BYTE 0xe1

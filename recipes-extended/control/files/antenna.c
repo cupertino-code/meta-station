@@ -192,6 +192,7 @@ static void send_status(int fd)
     status->angle = ANGLE_MIN + (current_pwm - PWM_DUTY_CYCLE_MIN) /
                     ((PWM_DUTY_CYCLE_MAX - PWM_DUTY_CYCLE_MIN) / (ANGLE_MAX - ANGLE_MIN));
     status->status = master_sw.power_status;
+    status->vbat = 0;
 
     *crc = crc8_data(&buffer[offsetof(struct rotator_protocol, timestamp)],
                      offsetof(struct rotator_protocol, payload) -
