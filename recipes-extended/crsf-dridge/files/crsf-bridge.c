@@ -31,6 +31,7 @@
 
 int verbose = 0;
 int tx_mode = 0; // TX mode flag
+int diagnostic = 0;
 
 typedef void (*process_func_t)(int uart_fd, int tcp_sock);
 
@@ -44,6 +45,8 @@ struct parser_state {
     int state;
     int length;
     int expected_length;
+    uint64_t packets;   // parsed packets
+    uint64_t errs;      // unparsed packets
     uint8_t buffer[CRSF_MAX_PACKET_SIZE];
 };
 
@@ -69,6 +72,7 @@ void help()
     printf("  -b, --baudrate <rate>     Set UART baud rate (default: %d)\n", BAUD_RATE);
     printf("  -t, --tx mode             Enable TX mode\n");
     printf("  -v, --verbose             Increase verbosity level (can be used multiple times)\n");
+    printf("  -d, --diag                Output diagnostic data (packet counters)\n");
     printf("  -h, --help                Show this help message\n");
     printf("  -V, --version             Show version information\n");
 }
@@ -140,6 +144,7 @@ int parser(struct parser_state *parser, uint8_t byte)
     if (last_timestamp) {
         if (parser->state != STATE_SOURCE && (timestamp - last_timestamp) > 1) {
             parser->state = STATE_SOURCE;
+            parser->errs++;
         }
     }
     last_timestamp = timestamp;
@@ -156,6 +161,7 @@ int parser(struct parser_state *parser, uint8_t byte)
             if (byte < 3 || byte > (CRSF_MAX_PAYLOAD_LEN + 2)) {
                 parser->length = 0;
                 parser->state = STATE_SOURCE;
+                parser->errs++;
                 break;
             }
             parser->expected_length = byte;
@@ -169,11 +175,13 @@ int parser(struct parser_state *parser, uint8_t byte)
             if (parser->length >= parser->expected_length) {
                 // Message complete
                 parser->state = STATE_SOURCE;
+                parser->packets++;
                 return parser->length; // Return length of complete message
             }
             break;
         default:
             parser->state = STATE_SOURCE; // Reset state on error
+            parser->errs++;
             break;
     }
     return 0; // Message not complete yet
@@ -199,7 +207,10 @@ void process_connection_tx(int uart_fd, int tcp_sock)
             perror("Error polling");
             break;
         }
-        
+        if (diagnostic) {
+            printf("TCP  packets: %lu errors: %lu\n", tcp_parser.packets, tcp_parser.errs);
+            printf("UART packets: %lu errors: %lu\r\033[A", uart_parser.packets, uart_parser.errs);
+        }
         if (ret == 0) {
             continue;
         }
@@ -214,7 +225,7 @@ void process_connection_tx(int uart_fd, int tcp_sock)
                             continue;
                         }
                         if (verbose) {
-                            printf("UART -> TCP: sent %zd bytes\n", uart_parser.length);
+                            printf("UART -> TCP: sent %d bytes\n", uart_parser.length);
                             if (verbose > 1 )
                                 dump("UART data", uart_parser.buffer, uart_parser.length);
                         }
@@ -227,7 +238,8 @@ void process_connection_tx(int uart_fd, int tcp_sock)
                                 if (verbose > 1)
                                     dump("Data", buf, buf[1]);
                             }
-                            write(uart_fd, buf, buf[1] + 2);
+                            if (write(uart_fd, buf, buf[1] + 2) < 0)
+                                perror("UART write error");
                             cbuf_drop(&cbuf);
                         }
                 }
@@ -250,7 +262,7 @@ void process_connection_tx(int uart_fd, int tcp_sock)
                         cbuf_put(&cbuf, tcp_parser.buffer);
                         if (verbose)
                         {
-                            printf("TCP: received %zd bytes\n", tcp_parser.length);
+                            printf("TCP: received %d bytes\n", tcp_parser.length);
                             if (verbose > 1)
                                 dump("TCP data", tcp_parser.buffer, tcp_parser.length);
                         }
@@ -450,6 +462,7 @@ int main(int argc, char *argv[])
         {"server", no_argument, NULL, 's'},
         {"tcp-port", required_argument, NULL, 'p'},
         {"tx mode", no_argument, NULL, 't'},
+        {"diag", no_argument, NULL, 'd'},
         {"help", no_argument, NULL, 'h'},
         {"version", no_argument, NULL, 'V'},
         {"verbose", no_argument, NULL, 'v'},
@@ -458,7 +471,7 @@ int main(int argc, char *argv[])
     int long_index = 0;
     strncpy(uart_device, UART_DEVICE, sizeof(uart_device) - 1);
     strncpy(server_ip, TCP_SERVER_IP, sizeof(server_ip) - 1);
-    while ((opt = getopt_long(argc, argv, "vVhu:c:sp:b:t", long_options, &long_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "vVhu:c:sp:b:td", long_options, &long_index)) != -1) {
         switch (opt) {
             case 'V':
                 printf("Version %s\n", VERSION);
@@ -469,6 +482,9 @@ int main(int argc, char *argv[])
             case 'h':
                 help();
                 return 0;
+            case 'd': // Diagnostic
+                diagnostic = 1;
+                break;
             case 'u': // UART device
                 strncpy(uart_device, optarg, sizeof(uart_device) - 1);
                 printf("UART device set to: %s\n", optarg);
@@ -518,6 +534,9 @@ int main(int argc, char *argv[])
     }
     parser_init(&tcp_parser);
     parser_init(&uart_parser);
+
+    tcp_parser.errs = 0; tcp_parser.packets = 0;
+    uart_parser.errs = 0; uart_parser.packets = 0;
 
     cbuffers = (uint8_t *)malloc(CRSF_MAX_PACKET_SIZE * CBUF_NUM * sizeof(uint8_t));
     cbuf_init(&cbuf, cbuffers, CBUF_NUM, CRSF_MAX_PACKET_SIZE * sizeof(uint8_t));
