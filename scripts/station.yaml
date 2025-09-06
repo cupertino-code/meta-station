@@ -73,6 +73,17 @@ common_data:
     - [RPI_KERNEL_DEVICETREE:append, " broadcom/bcm2711-rpi-4-b.dtb 
         broadcom/bcm2710-rpi-zero-2-w.dtb broadcom/bcm2710-rpi-zero-2.dtb"]
     - ["PREFERRED_VERSION_libgpiod", "1.6.%"]
+    - [RPI_KERNEL_DEVICETREE:remove,
+        "broadcom/bcm2708-rpi-b.dtb broadcom/bcm2708-rpi-zero-w.dtb
+         broadcom/bcm2708-rpi-b-plus.dtb broadcom/bcm2708-rpi-zero.dtb
+         broadcom/bcm2710-rpi-3-b.dtb broadcom/bcm2710-rpi-3-b-plus.dtb
+         broadcom/bcm2837-rpi-3-b.dtb broadcom/bcm2710-rpi-cm3.dtb
+         broadcom/bcm2711-rpi-400.dtb broadcom/bcm2711-rpi-cm4.dtb
+         broadcom/bcm2711-rpi-cm4s.dtb broadcom/bcm2712-rpi-cm5-cm5io.dtb
+         broadcom/bcm2712-rpi-cm5-cm4io.dtb broadcom/bcm2712-rpi-cm5l-cm5io.dtb
+         broadcom/bcm2712-rpi-cm5l-cm4io.dtb"]
+    - [IMAGE_ROOTFS_EXTRA_SPACE, "2097152"]
+    - [IMAGE_OVERHEAD_FACTOR, "2.0"]
 components:
   antenna:
     build-dir: "%{YOCTOS_WORK_DIR}"
@@ -102,7 +113,6 @@ components:
         - "tmp/deploy/images/%{ANTENNA_MACHINE}/zImage"
         - "tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2710-rpi-zero-2-w.dtb"
         - "tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2710-rpi-zero-2.dtb"
-        - "tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2710-rpi-3-b.dtb"
         - "tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2711-rpi-4-b.dtb"
         - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/bootcode.bin"
         - "tmp/deploy/images/%{ANTENNA_MACHINE}/bootfiles/config.txt"
@@ -185,7 +195,6 @@ components:
         - "tmp/deploy/images/%{STATION_MACHINE}/zImage"
         - "tmp/deploy/images/%{STATION_MACHINE}/bcm2710-rpi-zero-2-w.dtb"
         - "tmp/deploy/images/%{STATION_MACHINE}/bcm2710-rpi-zero-2.dtb"
-        - "tmp/deploy/images/%{STATION_MACHINE}/bcm2710-rpi-3-b.dtb"
         - "tmp/deploy/images/%{STATION_MACHINE}/bcm2711-rpi-4-b.dtb"
         - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/bootcode.bin"
         - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/config.txt"
@@ -269,7 +278,6 @@ images:
           "kernel7.img":  "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/zImage"
           "bcm2710-rpi-zero-2-w.dtb":               "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2710-rpi-zero-2-w.dtb"
           "bcm2710-rpi-zero-2.dtb":                 "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2710-rpi-zero-2.dtb"
-          "bcm2710-rpi-3-b.dtb":                    "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2710-rpi-3-b.dtb"
           "bcm2711-rpi-4-b.dtb":                    "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/bcm2711-rpi-4-b.dtb"
           "overlays/adv7282m.dtbo":                 "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/adv7282m.dtbo"
           "overlays/disable-bt.dtbo":               "%{YOCTOS_WORK_DIR}/%{ANTENNA_BUILD_DIR}/tmp/deploy/images/%{ANTENNA_MACHINE}/disable-bt.dtbo"
@@ -344,7 +352,6 @@ images:
           "kernel7.img":  "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/zImage"
           "bcm2710-rpi-zero-2-w.dtb":               "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bcm2710-rpi-zero-2-w.dtb"
           "bcm2710-rpi-zero-2.dtb":                 "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bcm2710-rpi-zero-2.dtb"
-          "bcm2710-rpi-3-b.dtb":                    "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bcm2710-rpi-3-b.dtb"
           "bcm2711-rpi-4-b.dtb":                    "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/bcm2711-rpi-4-b.dtb"
           "overlays/disable-bt.dtbo":               "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/disable-bt.dtbo"
           "overlays/disable-wifi.dtbo":             "%{YOCTOS_WORK_DIR}/%{STATION_BUILD_DIR}/tmp/deploy/images/%{STATION_MACHINE}/disable-wifi.dtbo"
