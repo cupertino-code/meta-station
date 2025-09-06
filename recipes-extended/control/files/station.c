@@ -27,6 +27,7 @@
 #define GPIO_PIN_B 18
 #define GPIO_PIN_BTN 23
 #define GPIO_PIN_MASTER 25
+#define GPIO_PIN_GST 22
 
 #define RISING_EDGE GPIO_V2_LINE_EVENT_RISING_EDGE
 #define FALLING_EDGE GPIO_V2_LINE_EVENT_FALLING_EDGE
@@ -89,11 +90,18 @@ struct pin_data enc_btn_data = {
     .btn_num = SWITCH_ENCODER_NUM,
 };
 
+struct pin_data gst_sw_data = {
+    .gpio = GPIO_PIN_GST,
+    .pin_flags = 0,
+    .btn_num = SWITCH_GST_NUM,
+};
+
 struct pin_data master_sw_data = {
     .gpio = GPIO_PIN_MASTER,
     .pin_flags = GPIO_V2_LINE_FLAG_BIAS_PULL_UP,
     .btn_num = SWITCH_ANTENNA_NUM,
 };
+
 static void encoder_callback(struct gpio_data *data, int index, int edge);
 static void button_callback(struct gpio_data *data, int index, int edge);
 
@@ -101,7 +109,8 @@ struct watch_pin pins[] = {
     {GPIO_PIN_A, 0, encoder_callback, &pin_a_data, -1},
     {GPIO_PIN_B, 0, encoder_callback, &pin_b_data, -1},
     {GPIO_PIN_BTN, 0, button_callback, &enc_btn_data, -1},
-    {GPIO_PIN_MASTER, 0, button_callback, &master_sw_data, -1}
+    {GPIO_PIN_MASTER, 0, button_callback, &master_sw_data, -1},
+    {GPIO_PIN_GST, 0, button_callback, &gst_sw_data, -1}
 };
 
 struct gpio_data {
