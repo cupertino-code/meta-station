@@ -1,5 +1,5 @@
 LDLIBS = -lpthread -lgpiod -lm -lcairo
-CFLAGS = -pedantic -Wall -Wextra -O0 -g
+CFLAGS = -pedantic -Wall -Wextra -O2 -g
 
 all: station antenna
 
