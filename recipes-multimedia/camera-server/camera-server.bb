@@ -7,10 +7,12 @@ FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 inherit systemd
 
-RDEPENDS:${PN} = "bash"
+DEPENDS += "python3 python3-pygobject"
+
+RDEPENDS:${PN} += "python3"
 
 SRC_URI += " \
-    file://stream_server.sh \
+    file://camera-stream.py \
     file://camera-stream.in \
 "
 
@@ -24,12 +26,12 @@ do_install() {
     sed -i "s/##TARGET_PORT##/${VIDEO_STREAM_PORT}/g" ${SERVICE_FILE}
     sed -i "s/##TARGET_IP##/${STATION_IP}/g" ${SERVICE_FILE}
     install -d ${D}${bindir}
-    install -m 0755 stream_server.sh ${D}${bindir}/stream-server
+    install -m 0755 camera-stream.py ${D}${bindir}/camera-stream
     install -d ${D}${systemd_system_unitdir}
     install -m 0644 camera-stream.service ${D}${systemd_system_unitdir}
 }
 
 FILES:${PN} += " \
-    ${bindir}/stream_server \
+    ${bindir}/camera-stream \
     ${systemd_system_unitdir}/${SERVICE_FILE} \
 "
