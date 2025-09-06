@@ -65,4 +65,14 @@ IMAGE_INSTALL:append = " \
     ${DEV_TOOLS} \
     ${SPECIFIC_TOOLS} \
 "
+
+PYTHON = " \
+    python3 \
+    python3-pygobject \
+"
+
+IMAGE_INSTALL:append = " \
+    ${PYTHON} \
+"
+
 #IMAGE_INSTALL:append = " packagegroup-rpi-test"
