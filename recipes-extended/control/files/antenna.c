@@ -152,10 +152,33 @@ void set_pwm(int duty_cycle)
     }
 }
 
-void set_switch(struct switch_status *sw)
+static void set_power(void)
+{
+    FILE *fp;
+
+    gpiod_line_set_value(master_sw.line, master_sw.sw_status);
+    master_sw.power_status = master_sw.sw_status;
+    fp = fopen("/tmp/camera-stream.pid", "r");
+    if (fp) {
+        char buf[11];
+        int pid;
+
+        memset(buf, 0, sizeof(buf));
+        fread(buf, sizeof(buf)-1, 1, fp);
+        pid = atoi(buf);
+        if (pid) {
+            kill(pid, master_sw.power_status? SIGUSR1 : SIGUSR2);
+        }
+        fclose(fp);
+    } else {
+        set_timeout(5);
+    }
+}
+
+static void set_switch(struct switch_status *sw)
 {
     if (master_sw.sw_status) {
-        gpiod_line_set_value(sw->line, sw->sw_status);
+        set_power();
         sw->power_status = sw->sw_status;
     } else {
         set_timeout(5);
@@ -170,8 +193,7 @@ void signal_handler(int sig)
             LOG1("Store pwm value %d.\n", current_pwm);
             nv_set_pwm(current_pwm);
         }
-        gpiod_line_set_value(master_sw.line, master_sw.sw_status);
-        master_sw.power_status = master_sw.sw_status;
+        set_power();
     }
 }
 
@@ -546,7 +568,7 @@ int main(int argc, char *argv[])
     }
     master_sw.line = line;
     master_sw.sw_status = 0;
-    master_sw.power_status = master_sw.sw_status;
+    master_sw.power_status = 0;
     ret = gpiod_line_request_output(line, "master_switch", 0);
     if (ret < 0) {
         perror("Failed to set line as output");
