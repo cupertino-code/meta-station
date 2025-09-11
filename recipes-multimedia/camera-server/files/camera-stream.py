@@ -146,27 +146,39 @@ class VideoStreamer:
         Signal handler for SIGUSR1. It sets a flag to restart the pipeline.
         """
         print("Received SIGUSR1. Preparing to restart the pipeline...")
-        self.run_pipeline_flag = True
         self.restart_pipeline_flag = True
+        self.start_pipeline()
 
     def signal_handler_usr2(self, sig, frame):
         """
         Signal handler for SIGUSR2. It sets a flag to stop the pipeline.
         """
         print("Received SIGUSR2. Preparing to stop the pipeline...")
-        self.run_pipeline_flag = False
+        self.stop_pipeline()
 
     def probe_buffer_cb(self, pad, info):
         self.last_buffer_time = Gst.util_get_timestamp()
         self.count += 1
         return Gst.PadProbeReturn.OK
 
+    def setup_pipeline(self):
+        if self.pipeline:
+            bus = self.pipeline.get_bus()
+            bus.add_signal_watch()
+            bus.connect("message", self.bus_call)
+            self.pipeline.set_state(Gst.State.PLAYING)
+            print("Pipeline created. Starting to play...")
+            src = self.pipeline.get_by_name("source")
+            src.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self.probe_buffer_cb)
+            GLib.timeout_add(WATCHDOG_CHECK_MS, self.check_pipeline_activity)
+
     def check_pipeline_activity(self):
+        if not self.run_pipeline_flag:
+            return GLib.SOURCE_REMOVE
         if self.last_buffer_time == 0:
             return GLib.SOURCE_CONTINUE
         current_time = Gst.util_get_timestamp()
         time_diff = current_time - self.last_buffer_time
-#        print(f'{self.count} Last: {int(self.last_buffer_time/1000)} Now: {int(current_time/1000)} Diff: {int(time_diff/1000)}')
         self.count = 0
 
         if time_diff > WATCHDOG_TIMEOUT_US * 1000: # Час у nanoseconds
@@ -175,6 +187,28 @@ class VideoStreamer:
             return GLib.SOURCE_REMOVE
 
         return GLib.SOURCE_CONTINUE
+
+    def start_pipeline(self):
+        if self.restart_pipeline_flag:
+            print("Restarting pipeline as requested...")
+            self.restart_pipeline_flag = False
+            self.stop_pipeline()
+            time.sleep(0.2)
+        self.run_pipeline_flag = True
+        if self.pipeline == None:
+            self.pipeline = self.create_pipeline(self.address, self.port)
+            self.setup_pipeline()
+            return
+        if self.pipeline:
+            if self.pipeline.get_state(0).state != Gst.State.PLAYING:
+                self.setup_pipeline()
+
+    def stop_pipeline(self):
+        self.run_pipeline_flag = False
+        if self.pipeline and self.pipeline.get_state(0).state != Gst.State.NULL:
+            self.pipeline.set_state(Gst.State.NULL)
+            bus = self.pipeline.get_bus()
+            bus.remove_signal_watch()
 
     def run(self):
         signal.signal(signal.SIGUSR1, self.signal_handler_usr1)
@@ -189,39 +223,29 @@ class VideoStreamer:
         try:
             while True:
                 if not self.run_pipeline_flag:
-                    if self.pipeline:
+                    if self.pipeline and self.pipeline.get_state(0).state != Gst.State.NULL:
                         print("Stopping current pipeline...")
                         bus = self.pipeline.get_bus()
                         bus.remove_signal_watch()
                         self.pipeline.set_state(Gst.State.NULL)
-                        self.pipeline = None
+                    GLib.MainContext.default().iteration(False)
                     time.sleep(2)
                     continue
-                if self.pipeline is None or self.restart_pipeline_flag:
-                    # Stop the current pipeline if it exists
-                    if self.pipeline:
-                        print("Stopping current pipeline...")
-                        bus = self.pipeline.get_bus()
-                        bus.remove_signal_watch()
-                        self.pipeline.set_state(Gst.State.NULL)
-                        self.pipeline = None
-
+                if self.pipeline is None:
                     # Create and start a new pipeline
                     self.pipeline = self.create_pipeline(self.address, self.port)
-                    if self.pipeline:
-                        bus = self.pipeline.get_bus()
-                        bus.add_signal_watch()
-                        bus.connect("message", self.bus_call)
-                        print("Pipeline created. Starting to play...")
-                        src = self.pipeline.get_by_name("source")
-                        src.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self.probe_buffer_cb)
-                        GLib.timeout_add(WATCHDOG_CHECK_MS, self.check_pipeline_activity)
-                        self.pipeline.set_state(Gst.State.PLAYING)
-                        self.restart_pipeline_flag = False
-                    else:
+                    self.setup_pipeline()
+                    if self.pipeline is None:
                         print("Failed to create pipeline. Retrying in 5 seconds...")
                         time.sleep(5)
                         continue
+                    self.restart_pipeline_flag = False
+                if self.restart_pipeline_flag:
+                    self.stop_pipeline()
+                    time.sleep(0.2)
+                    self.start_pipeline()
+                    self.restart_pipeline_flag = False
+                    print("Restarting pipeline as requested...")
 
                 # Check for messages and handle events in a non-blocking way
                 GLib.MainContext.default().iteration(False)
