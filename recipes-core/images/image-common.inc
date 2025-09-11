@@ -51,6 +51,7 @@ DEV_TOOLS = " \
     minicom \
     socat \
     raspi-gpio \
+    tmux \
 "
 
 # Додаємо підтримку SSH-сервера (OpenSSH)
