@@ -12,7 +12,7 @@ from gi.repository import Gst, GLib
 
 Gst.init(None)
 
-WATCHDOG_TIMEOUT_US = 300000
+WATCHDOG_TIMEOUT_US = 1200000
 WATCHDOG_CHECK_MS = 1000
 PID_FILE = "/tmp/camera-stream.pid"
 
@@ -33,6 +33,8 @@ class VideoStreamer:
         self.run_pipeline_flag = False
         self.last_buffer_time = 0
         self.count = 0
+        self.pipeline_state = Gst.State.NULL
+        self.run_state = False
 
     def make_element(self, plugin, name):
         element = Gst.ElementFactory.make(plugin, name)
@@ -135,6 +137,7 @@ class VideoStreamer:
             # Check if the state change is for the entire pipeline
             if isinstance(src, Gst.Pipeline):
                 print(f"Pipeline state changed from {Gst.Element.state_get_name(old_state)} to {Gst.Element.state_get_name(new_state)}")
+                self.pipeline_state = new_state
         elif t == Gst.MessageType.QOS:
             live, running_time, stream_time, timestamp, duration = message.parse_qos()
             src_name = message.src.get_name() if message.src else "unknown"
@@ -161,12 +164,24 @@ class VideoStreamer:
         self.count += 1
         return Gst.PadProbeReturn.OK
 
+    def set_state(self, run_state):
+        if run_state:
+            if self.run_state and self.pipeline_state != Gst.State.NULL:
+                return
+            self.run_state = True
+            self.pipeline.set_state(Gst.State.PLAYING)
+        else:
+            if not self.run_state and self.pipeline_state == Gst.State.NULL:
+                return
+            self.run_state = False
+            self.pipeline.set_state(Gst.State.NULL)
+
     def setup_pipeline(self):
         if self.pipeline:
             bus = self.pipeline.get_bus()
             bus.add_signal_watch()
             bus.connect("message", self.bus_call)
-            self.pipeline.set_state(Gst.State.PLAYING)
+            self.set_state(True)
             print("Pipeline created. Starting to play...")
             src = self.pipeline.get_by_name("source")
             src.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self.probe_buffer_cb)
@@ -198,15 +213,14 @@ class VideoStreamer:
         if self.pipeline == None:
             self.pipeline = self.create_pipeline(self.address, self.port)
             self.setup_pipeline()
-            return
-        if self.pipeline:
+        else:
             if self.pipeline.get_state(0).state != Gst.State.PLAYING:
                 self.setup_pipeline()
 
     def stop_pipeline(self):
         self.run_pipeline_flag = False
         if self.pipeline and self.pipeline.get_state(0).state != Gst.State.NULL:
-            self.pipeline.set_state(Gst.State.NULL)
+            self.set_state(False)
             bus = self.pipeline.get_bus()
             bus.remove_signal_watch()
 
@@ -227,7 +241,7 @@ class VideoStreamer:
                         print("Stopping current pipeline...")
                         bus = self.pipeline.get_bus()
                         bus.remove_signal_watch()
-                        self.pipeline.set_state(Gst.State.NULL)
+                        self.set_state(False)
                     GLib.MainContext.default().iteration(False)
                     time.sleep(2)
                     continue
@@ -255,7 +269,7 @@ class VideoStreamer:
             print("Received Ctrl+C. Exiting...")
         finally:
             if self.pipeline:
-                self.pipeline.set_state(Gst.State.NULL)
+                self.set_state(False)
 
 def main():
     parser = argparse.ArgumentParser(
