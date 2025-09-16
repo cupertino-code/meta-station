@@ -12,29 +12,25 @@ from gi.repository import Gst, GLib
 
 Gst.init(None)
 
-WATCHDOG_TIMEOUT_US = 1200000
+WATCHDOG_TIMEOUT_US = 300000
 WATCHDOG_CHECK_MS = 1000
+BITRATE = 2000000
 PID_FILE = "/tmp/camera-stream.pid"
 
 class GstElementError(Exception):
-    def __init__(self, plugin, errors):
-        # Call the base class constructor with the parameters it needs
+    def __init__(self, plugin):
         super().__init__(f'No such element or plugin "{plugin}"')
-
-        # Now for your custom code...
-        self.errors = errors
 
 class VideoStreamer:
     def __init__(self, address: str, port: int):
         self.address = address
+        self.bitrate = BITRATE
         self.port = port
         self.pipeline = None
-        self.restart_pipeline_flag = False
-        self.run_pipeline_flag = False
+        self.bus_id = None
+        self.probe_id = None
+        self.timeout_id = None
         self.last_buffer_time = 0
-        self.count = 0
-        self.pipeline_state = Gst.State.NULL
-        self.run_state = False
 
     def make_element(self, plugin, name):
         element = Gst.ElementFactory.make(plugin, name)
@@ -44,232 +40,165 @@ class VideoStreamer:
         return element
 
     def create_pipeline(self, address: str, port: int):
-        """
-        Creates and returns a new GStreamer pipeline.
-        """
         print("Creating new GStreamer pipeline...")
+        try:
+            pipeline = Gst.Pipeline.new("camera-h264-streamer")
+            src = self.make_element("v4l2src", "source")
+            convert = self.make_element("videoconvert", "converter")
+            capsfilter = self.make_element("capsfilter", "capsfilter")
+            encoder = self.make_element("v4l2h264enc", "encoder")
+            encoder_caps = Gst.Caps.from_string("video/x-h264,profile=main,level=(string)4")
+            encoder_capsfilter = self.make_element("capsfilter", "encoder-capsfilter")
+            encoder_capsfilter.set_property("caps", encoder_caps)
+            payloader = self.make_element("rtph264pay", "payloader")
+            sink = self.make_element("udpsink", "sink")
 
-        # Create the pipeline and its elements
-        pipeline = Gst.Pipeline.new("camera-h264-streamer")
-        src = self.make_element("v4l2src", "source")
-        convert = self.make_element("videoconvert", "converter")
-        capsfilter = self.make_element("capsfilter", "capsfilter")
-        encoder = self.make_element("v4l2h264enc", "encoder")
-        # Create caps for the encoder output
-        encoder_caps = Gst.Caps.from_string("video/x-h264,profile=main,level=(string)4")
-        encoder_capsfilter = self.make_element("capsfilter", "encoder-capsfilter")
-        encoder_capsfilter.set_property("caps", encoder_caps)
-        payloader = self.make_element("rtph264pay", "payloader")
-        sink = self.make_element("udpsink", "sink")
+            src.set_property("device", "/dev/video0")
+            src.set_property("norm", "PAL")
+            caps = Gst.Caps.from_string("video/x-raw,format=UYVY,width=720,height=576,framerate=25/1")
+            capsfilter.set_property("caps", caps)
+            encoder_controls = Gst.Structure.new_from_string(f"controls,video_bitrate={self.bitrate}")
+            encoder.set_property("extra-controls", encoder_controls)
+            payloader.set_property("config-interval", -1)
+            payloader.set_property("mtu", 1450)
+            payloader.set_property("aggregate-mode", 1)
+            sink.set_property("host", address)
+            sink.set_property("port", port)
+            sink.set_property("sync", False)
+            sink.set_property("loop", False)
 
-        # Check if elements were created successfully
-        if not all([pipeline, src, capsfilter, convert, encoder, encoder_capsfilter, payloader, sink]):
-            print("Error: Failed to create one or more GStreamer elements!")
-            return None
+            pipeline.add(src)
+            pipeline.add(capsfilter)
+            pipeline.add(convert)
+            pipeline.add(encoder)
+            pipeline.add(encoder_capsfilter)
+            pipeline.add(payloader)
+            pipeline.add(sink)
 
+            if not Gst.Element.link(src, capsfilter): return None
+            if not Gst.Element.link(capsfilter, convert): return None
+            if not Gst.Element.link(convert, encoder): return None
+            if not Gst.Element.link(encoder, encoder_capsfilter): return None
+            if not Gst.Element.link(encoder_capsfilter, payloader): return None
+            if not Gst.Element.link(payloader, sink): return None
 
-        # Set element properties
-        src.set_property("device", "/dev/video0")
-        src.set_property("norm", "PAL")
-        src.set_property("name", "source")
-
-        # Set the caps filter for the camera's raw video output
-        caps = Gst.Caps.from_string("video/x-raw,format=UYVY,width=720,height=576,framerate=25/1")
-        capsfilter.set_property("caps", caps)
-        encoder_controls = Gst.Structure.new_from_string("controls,video_bitrate=1000000")
-        encoder.set_property("extra-controls", encoder_controls)
-        payloader.set_property("config-interval", -1)
-        payloader.set_property("mtu", 1450)
-        payloader.set_property("aggregate-mode", 1)
-        sink.set_property("host", address)
-        sink.set_property("port", port)
-        sink.set_property("sync", False)
-        sink.set_property("loop", False)
-
-        # Add elements to the pipeline
-        pipeline.add(src)
-        pipeline.add(capsfilter)
-        pipeline.add(convert)
-        pipeline.add(encoder)
-        pipeline.add(encoder_capsfilter)
-        pipeline.add(payloader)
-        pipeline.add(sink)
-
-        # Link the elements
-        if not src.link(capsfilter):
-            print("Can't link src to capsfilter")
+            return pipeline
+        except GstElementError:
             return None
-        if not capsfilter.link(convert):
-            print("Can't link capsfilter to videoconver")
-            return None
-        if not convert.link(encoder):
-            print("Can't link videoconvert to encoder")
-            return None
-        if not encoder.link(encoder_capsfilter):
-            print("Can't link encoder to capsfilter")
-            return None
-        if not encoder_capsfilter.link(payloader):
-            print("Can't capsfilter to payloader")
-            return None
-        if not payloader.link(sink):
-            print("Can't link payloader to sink")
-            return None
-        return pipeline
 
     def bus_call(self, bus, message):
-        """
-        Handles messages from the GStreamer bus.
-        """
         t = message.type
-        if t == Gst.MessageType.EOS:
-            sys.stdout.write("End-Of-Stream reached.\n")
-            self.loop.quit()
-        elif t == Gst.MessageType.ERROR:
+        if t == Gst.MessageType.EOS or t == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
-            sys.stderr.write("GStreamer Error: %s: %s\n" % (err, debug))
-            self.loop.quit()
-        elif t == Gst.MessageType.WARNING:
-            err, debug = message.parse_warning()
-            sys.stderr.write("GStreamer Warning: %s: %s\n" % (err, debug))
-        elif t == Gst.MessageType.STATE_CHANGED:
-            old_state, new_state, pending_state = message.parse_state_changed()
-            src = message.src
-            # Check if the state change is for the entire pipeline
-            if isinstance(src, Gst.Pipeline):
-                print(f"Pipeline state changed from {Gst.Element.state_get_name(old_state)} to {Gst.Element.state_get_name(new_state)}")
-                self.pipeline_state = new_state
-        elif t == Gst.MessageType.QOS:
-            live, running_time, stream_time, timestamp, duration = message.parse_qos()
-            src_name = message.src.get_name() if message.src else "unknown"
-#            print(f"QoS: [{src_name}] live={live} running_time={running_time} stream_time={stream_time}, timestamp={timestamp}, duration={duration}")
+            if err:
+                sys.stderr.write(f"GStreamer Error: {err.message}: {debug}\n")
+            print("Pipeline stopped due to EOS or error. Restarting...")
+            self.stop_and_restart()
         return True
 
     def signal_handler_usr1(self, sig, frame):
-        """
-        Signal handler for SIGUSR1. It sets a flag to restart the pipeline.
-        """
-        print("Received SIGUSR1. Preparing to restart the pipeline...")
-        self.restart_pipeline_flag = True
-        self.start_pipeline()
+        print("Received SIGUSR1. Restarting the pipeline...")
+        self.stop_and_restart()
 
     def signal_handler_usr2(self, sig, frame):
-        """
-        Signal handler for SIGUSR2. It sets a flag to stop the pipeline.
-        """
-        print("Received SIGUSR2. Preparing to stop the pipeline...")
-        self.stop_pipeline()
+        print("Received SIGUSR2. Stopping the pipeline...")
+        self._teardown_pipeline()
 
     def probe_buffer_cb(self, pad, info):
         self.last_buffer_time = Gst.util_get_timestamp()
-        self.count += 1
         return Gst.PadProbeReturn.OK
 
-    def set_state(self, run_state):
-        if run_state:
-            if self.run_state and self.pipeline_state != Gst.State.NULL:
-                return
-            self.run_state = True
-            self.pipeline.set_state(Gst.State.PLAYING)
-        else:
-            if not self.run_state and self.pipeline_state == Gst.State.NULL:
-                return
-            self.run_state = False
-            self.pipeline.set_state(Gst.State.NULL)
-
-    def setup_pipeline(self):
-        if self.pipeline:
-            bus = self.pipeline.get_bus()
-            bus.add_signal_watch()
-            bus.connect("message", self.bus_call)
-            self.set_state(True)
-            print("Pipeline created. Starting to play...")
-            src = self.pipeline.get_by_name("source")
-            src.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self.probe_buffer_cb)
-            GLib.timeout_add(WATCHDOG_CHECK_MS, self.check_pipeline_activity)
-
     def check_pipeline_activity(self):
-        if not self.run_pipeline_flag:
+        if not self.pipeline:
             return GLib.SOURCE_REMOVE
-        if self.last_buffer_time == 0:
-            return GLib.SOURCE_CONTINUE
+
         current_time = Gst.util_get_timestamp()
         time_diff = current_time - self.last_buffer_time
-        self.count = 0
 
-        if time_diff > WATCHDOG_TIMEOUT_US * 1000: # Час у nanoseconds
-            print("Preparing to restart the pipeline...")
-            self.restart_pipeline_flag = True
+        if time_diff > WATCHDOG_TIMEOUT_US * 1000:
+            print("No new frames detected. Restarting pipeline...")
+            self.stop_and_restart()
             return GLib.SOURCE_REMOVE
 
         return GLib.SOURCE_CONTINUE
 
-    def start_pipeline(self):
-        if self.restart_pipeline_flag:
-            print("Restarting pipeline as requested...")
-            self.restart_pipeline_flag = False
-            self.stop_pipeline()
-            time.sleep(0.2)
-        self.run_pipeline_flag = True
-        if self.pipeline == None:
-            self.pipeline = self.create_pipeline(self.address, self.port)
-            self.setup_pipeline()
-        else:
-            if self.pipeline.get_state(0).state != Gst.State.PLAYING:
-                self.setup_pipeline()
+    def _setup_pipeline(self):
+        if not self.pipeline:
+            return
 
-    def stop_pipeline(self):
-        self.run_pipeline_flag = False
-        if self.pipeline and self.pipeline.get_state(0).state != Gst.State.NULL:
-            self.set_state(False)
-            bus = self.pipeline.get_bus()
-            bus.remove_signal_watch()
+        bus = self.pipeline.get_bus()
+        self.bus_id = bus.add_signal_watch()
+        bus.connect("message", self.bus_call)
+
+        src = self.pipeline.get_by_name("source")
+        src_pad = src.get_static_pad("src")
+        self.probe_id = src_pad.add_probe(Gst.PadProbeType.BUFFER, self.probe_buffer_cb)
+
+        self.timeout_id = GLib.timeout_add(WATCHDOG_CHECK_MS, self.check_pipeline_activity)
+        self.pipeline.set_state(Gst.State.PLAYING)
+        self.last_buffer_time = Gst.util_get_timestamp()
+        print("Pipeline started.")
+
+    def _teardown_pipeline(self):
+        if self.pipeline:
+            print("Stopping pipeline...")
+            self.pipeline.set_state(Gst.State.NULL)
+
+            # Remove signal watch and probe
+            if self.bus_id:
+                bus = self.pipeline.get_bus()
+                bus.remove_signal_watch()
+                self.bus_id = None
+            if self.probe_id:
+                src = self.pipeline.get_by_name("source")
+                if src:
+                    src.get_static_pad("src").remove_probe(self.probe_id)
+                self.probe_id = None
+            if self.timeout_id:
+                GLib.source_remove(self.timeout_id)
+                self.timeout_id = None
+
+            self.pipeline = None
+            print("Pipeline stopped and resources released.")
+
+    def stop_and_restart(self):
+        self._teardown_pipeline()
+        print("Waiting for 1 second before restarting...")
+        GLib.timeout_add_seconds(1, self.start_pipeline)
+
+    def start_pipeline(self):
+        print("Attempting to start pipeline...")
+        self._teardown_pipeline()
+
+        self.pipeline = self.create_pipeline(self.address, self.port)
+        if self.pipeline:
+            self._setup_pipeline()
+        else:
+            print("Failed to create pipeline. Retrying in 5 seconds...")
+            GLib.timeout_add_seconds(5, self.start_pipeline)
 
     def run(self):
         signal.signal(signal.SIGUSR1, self.signal_handler_usr1)
         signal.signal(signal.SIGUSR2, self.signal_handler_usr2)
-        # Create a GLib main loop
+
         self.loop = GLib.MainLoop()
-        print(f"Script started. PID: {os.getpid()}")
-        with open(PID_FILE, 'w') as f:
-            f.write(str(os.getpid()) + '\n')
-        print(f"PID written to {PID_FILE}")
+
+        print(f"Script started. PID: {os.getpid()} bitrate: {self.bitrate}")
+        try:
+            with open(PID_FILE, 'w') as f:
+                f.write(str(os.getpid()) + '\n')
+            print(f"PID written to {PID_FILE}")
+        except IOError as e:
+            print(f"Warning: Could not write PID file: {e}")
+
+        self.start_pipeline()
 
         try:
-            while True:
-                if not self.run_pipeline_flag:
-                    if self.pipeline and self.pipeline.get_state(0).state != Gst.State.NULL:
-                        print("Stopping current pipeline...")
-                        bus = self.pipeline.get_bus()
-                        bus.remove_signal_watch()
-                        self.set_state(False)
-                    GLib.MainContext.default().iteration(False)
-                    time.sleep(2)
-                    continue
-                if self.pipeline is None:
-                    # Create and start a new pipeline
-                    self.pipeline = self.create_pipeline(self.address, self.port)
-                    self.setup_pipeline()
-                    if self.pipeline is None:
-                        print("Failed to create pipeline. Retrying in 5 seconds...")
-                        time.sleep(5)
-                        continue
-                    self.restart_pipeline_flag = False
-                if self.restart_pipeline_flag:
-                    self.stop_pipeline()
-                    time.sleep(0.2)
-                    self.start_pipeline()
-                    self.restart_pipeline_flag = False
-                    print("Restarting pipeline as requested...")
-
-                # Check for messages and handle events in a non-blocking way
-                GLib.MainContext.default().iteration(False)
-                time.sleep(0.1)
-
+            self.loop.run()
         except KeyboardInterrupt:
             print("Received Ctrl+C. Exiting...")
         finally:
-            if self.pipeline:
-                self.set_state(False)
+            self._teardown_pipeline()
 
 def main():
     parser = argparse.ArgumentParser(
