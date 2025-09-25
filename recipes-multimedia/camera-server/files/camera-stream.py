@@ -164,7 +164,7 @@ class VideoStreamer:
     def stop_and_restart(self):
         self._teardown_pipeline()
         print("Waiting for 1 second before restarting...")
-        GLib.timeout_add_seconds(1, self.start_pipeline)
+        GLib.timeout_add_seconds(0.3, self.start_pipeline)
 
     def start_pipeline(self):
         print("Attempting to start pipeline...")
