@@ -1,3 +1,3 @@
 require crsf-bridge.inc
-
-CONN_PARAMS = "-t -s -p ${CRSF_PORT}"
+TARGET_IP = "${ANTENNA_IP}"
+CONN_PARAMS = "-t -p ${CRSF_PORT}"

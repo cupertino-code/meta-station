@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 
 # Path to your stream server script
-ExecStart=/bin/crsf-bridge ##CONN_PARAMS## -u ##UART##
+ExecStart=/bin/crsf-bridge ##CONN_PARAMS## -u ##UART## ##TARGET_IP##
 
 # Restart policy
 # 'on-failure' - restarts if the service exits with a non-zero exit code (error)

@@ -18,24 +18,23 @@
 #define UART_DEVICE "/dev/ttyS0"
 #define BAUD_RATE 115200
 
-#define TCP_SERVER_IP "192.168.1.100"
-#define TCP_SERVER_PORT 7300
+#define UDP_PORT 7300
 
 #define BUFFER_SIZE 256
 
 #define VERSION "1.0"
 
-#define MODE_DEFAULT 0
-#define MODE_CLIENT 1
-#define MODE_SERVER 2
-
 int verbose = 0;
 int tx_mode = 0; // TX mode flag
-int diagnostic = 0;
+int diagnostic = 0; // Diagnostic flag
 
-typedef void (*process_func_t)(int uart_fd, int tcp_sock);
+typedef void (*process_func_t)(int uart_fd, int udp_sock, const char *ip_addr, uint16_t udp_port);
 
 process_func_t process_connection_func = NULL;
+
+#ifndef CLOCK_MONOTONIC
+#define CLOCK_MONOTONIC 1
+#endif
 
 #define STATE_SOURCE    0
 #define STATE_LENGTH    1
@@ -50,7 +49,7 @@ struct parser_state {
     uint8_t buffer[CRSF_MAX_PACKET_SIZE];
 };
 
-struct parser_state tcp_parser;
+struct parser_state net_parser;
 struct parser_state uart_parser;
 struct circular_buf cbuf;
 struct cbuf_item {
@@ -63,12 +62,10 @@ struct cbuf_item {
 #define MAYBE_UNUSED __attribute__((unused))
 void help()
 {
-    printf("Usage: connector -s | -c <server IP> [options]\n");
+    printf("Usage: connector [options] <peer IP>\n");
     printf("Options:\n");
     printf("  -u, --uart <device>       Set UART device (default: %s)\n", UART_DEVICE);
-    printf("  -c, --client <server IP>  Run in client mode. Need server IP (default: %s)\n", TCP_SERVER_IP);
-    printf("  -s, --server              Run in server mode\n");
-    printf("  -p, --tcp-port <port>     Set TCP port (default: %d)\n", TCP_SERVER_PORT);
+    printf("  -p, --udp-port <port>     Set UDP port (default: %d)\n", UDP_PORT);
     printf("  -b, --baudrate <rate>     Set UART baud rate (default: %d)\n", BAUD_RATE);
     printf("  -t, --tx mode             Enable TX mode\n");
     printf("  -v, --verbose             Increase verbosity level (can be used multiple times)\n");
@@ -89,12 +86,18 @@ void dump(const char *prefix, const char *data, size_t len)
 }
 
 volatile int run;
+volatile int *sock;
 
 void sigint_handler(int sig) {
     printf("\nGot signal SIGINT (Ctrl+C). Exiting...\n");
     run = 0;
+    if (sock && *sock) {
+        close(*sock);
+        sock = NULL;
+    }
 }
 
+#if 1
 int setup_uart(char *device, int MAYBE_UNUSED baud_rate)
 {
     int uart_fd;
@@ -125,6 +128,67 @@ int setup_uart(char *device, int MAYBE_UNUSED baud_rate)
         printf("UART configured on %s with baud rate %d\n", device, baud_rate);
     return uart_fd;
 }
+#else
+int setup_uart(char *device, int baud_rate)
+{
+    int uart_fd;
+    struct termios tty_config;
+    // You should save the original settings to restore them later
+    struct termios tty_old_config;
+
+    uart_fd = open(device, O_RDWR | O_NOCTTY | O_SYNC);
+    if (uart_fd < 0)
+    {
+        perror("Error opening UART");
+        return -1;
+    }
+
+    if (tcgetattr(uart_fd, &tty_config) != 0)
+    {
+        perror("Error tcgetattr");
+        close(uart_fd);
+        return -1;
+    }
+    // Save old settings for restoration
+    tty_old_config = tty_config;
+
+    // Set input and output baud rate
+    cfsetispeed(&tty_config, baud_rate);
+    cfsetospeed(&tty_config, baud_rate);
+
+    // Raw mode: no input or output processing
+    tty_config.c_cflag |= (CLOCAL | CREAD); // Enable receiver, ignore modem status lines
+    tty_config.c_cflag &= ~PARENB;          // No parity
+    tty_config.c_cflag &= ~CSTOPB;          // 1 stop bit
+    tty_config.c_cflag &= ~CSIZE;           // Clear character size mask
+    tty_config.c_cflag |= CS8;              // 8 data bits
+
+    tty_config.c_iflag = 0; // Disable all input processing
+    tty_config.c_oflag = 0; // Disable all output processing
+    tty_config.c_lflag = 0; // Disable all local modes
+
+    // Set control characters for non-blocking read
+    tty_config.c_cc[VMIN] = 1;
+    tty_config.c_cc[VTIME] = 0;
+
+    // Apply the changes immediately
+    if (tcsetattr(uart_fd, TCSANOW, &tty_config) != 0)
+    {
+        perror("Error tcsetattr");
+        close(uart_fd);
+        return -1;
+    }
+    // Flush any pending data after setting the new configuration
+    tcflush(uart_fd, TCIFLUSH);
+
+    // This part is for demonstration and would need the restore logic
+    if (verbose)
+    {
+        printf("UART configured on %s with baud rate %d\n", device, baud_rate);
+    }
+    return uart_fd;
+}
+#endif
 
 void parser_init(struct parser_state *parser)
 {
@@ -186,17 +250,27 @@ int parser(struct parser_state *parser, uint8_t byte)
     }
     return 0; // Message not complete yet
 }
-void process_connection_tx(int uart_fd, int tcp_sock)
+void process_connection_tx(int uart_fd, int udp_sock, const char *ip_addr, uint16_t udp_port)
 {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read;
+    struct sockaddr_in from, to;
+    socklen_t from_len;
 
     struct pollfd fds[2];
     fds[0].fd = uart_fd;
     fds[0].events = POLLIN;
-    fds[1].fd = tcp_sock;
+    fds[1].fd = udp_sock;
     fds[1].events = POLLIN;
 
+    to.sin_family = AF_INET;
+    to.sin_port = htons(udp_port);
+    if (inet_pton(AF_INET, ip_addr, &to.sin_addr) <= 0)
+    {
+        perror("Invalid IP address");
+        close(udp_sock);
+        return;
+    }
     tcflush(uart_fd, TCIOFLUSH);
 
     if (verbose)
@@ -208,7 +282,7 @@ void process_connection_tx(int uart_fd, int tcp_sock)
             break;
         }
         if (diagnostic) {
-            printf("TCP  packets: %lu errors: %lu\n", tcp_parser.packets, tcp_parser.errs);
+            printf("TCP  packets: %lu errors: %lu\n", net_parser.packets, net_parser.errs);
             printf("UART packets: %lu errors: %lu\r\033[A", uart_parser.packets, uart_parser.errs);
         }
         if (ret == 0) {
@@ -220,12 +294,13 @@ void process_connection_tx(int uart_fd, int tcp_sock)
             if (bytes_read > 0) {
                 for (int i = 0; i < bytes_read; i++)
                     if (parser(&uart_parser, buffer[i])) {
-                        if (write(tcp_sock, uart_parser.buffer, uart_parser.length) < 0) {
-                            perror("Error sending over TCP");
+                        if (sendto(udp_sock, uart_parser.buffer, uart_parser.length, 0,
+                                   (struct sockaddr *)&to, sizeof(to)) < 0) {
+                            perror("Error sending over UDP");
                             continue;
                         }
                         if (verbose) {
-                            printf("UART -> TCP: sent %d bytes\n", uart_parser.length);
+                            printf("UART -> UDP: sent %d bytes\n", uart_parser.length);
                             if (verbose > 1 )
                                 dump("UART data", uart_parser.buffer, uart_parser.length);
                         }
@@ -253,26 +328,25 @@ void process_connection_tx(int uart_fd, int tcp_sock)
         }
 
         if (fds[1].revents & POLLIN) {
-            bytes_read = read(tcp_sock, buffer, sizeof(buffer));
+            bytes_read = recvfrom(udp_sock, buffer, sizeof(buffer), 0, (struct sockaddr *)&from,
+                                 &from_len);
             if (bytes_read > 0) {
                 for (int i = 0; i < bytes_read; i++) {
-                    int len = parser(&tcp_parser, buffer[i]);
+                    int len = parser(&net_parser, buffer[i]);
                     if (len > 0)
                     {
-                        cbuf_put(&cbuf, tcp_parser.buffer);
+                        cbuf_put(&cbuf, net_parser.buffer);
                         if (verbose)
                         {
-                            printf("TCP: received %d bytes\n", tcp_parser.length);
+                            printf("UDP(from %s): received %d bytes\n", inet_ntoa(from.sin_addr),
+                                   net_parser.length);
                             if (verbose > 1)
-                                dump("TCP data", tcp_parser.buffer, tcp_parser.length);
+                                dump("UDP data", net_parser.buffer, net_parser.length);
                         }
                     }
                 }
-            } else if (bytes_read == 0) {
-                printf("TCP peer closed the connection.\n");
-                break;
             } else {
-                perror("Error reading from TCP");
+                perror("Error reading from UDP");
                 break;
             }
         }
@@ -280,20 +354,30 @@ void process_connection_tx(int uart_fd, int tcp_sock)
     if (!run) {
         printf("Connection closed by user.\n");
     }
-    close(tcp_sock);
+    close(udp_sock);
 }
 
-void process_connection(int uart_fd, int tcp_sock)
+void process_connection(int uart_fd, int udp_sock, const char *ip_addr, uint16_t udp_port)
 {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read;
+    struct sockaddr_in from, to;
+    socklen_t from_len;
 
     struct pollfd fds[2];
     fds[0].fd = uart_fd;
     fds[0].events = POLLIN;
-    fds[1].fd = tcp_sock;
+    fds[1].fd = udp_sock;
     fds[1].events = POLLIN;
 
+    to.sin_family = AF_INET;
+    to.sin_port = htons(udp_port);
+    if (inet_pton(AF_INET, ip_addr, &to.sin_addr) <= 0)
+    {
+        perror("Invalid IP address");
+        close(udp_sock);
+        return;
+    }
     tcflush(uart_fd, TCIOFLUSH);
 
     if (verbose)
@@ -312,12 +396,13 @@ void process_connection(int uart_fd, int tcp_sock)
         if (fds[0].revents & POLLIN) {
             bytes_read = read(uart_fd, buffer, sizeof(buffer));
             if (bytes_read > 0) {
-                if (write(tcp_sock, buffer, bytes_read) < 0) {
-                    perror("Error sending over TCP");
-                    break;
+                if (sendto(udp_sock, buffer, bytes_read, 0, (struct sockaddr *)&to, sizeof(to)) < 0)
+                {
+                    perror("Error sending over UDP");
+                    continue;
                 }
                 if (verbose) {
-                    printf("UART -> TCP: sent %zd bytes\n", bytes_read);
+                    printf("UART -> UDP: sent %zd bytes\n", bytes_read);
                     if (verbose > 1 )
                         dump("UART data", buffer, bytes_read);
                 }
@@ -331,22 +416,21 @@ void process_connection(int uart_fd, int tcp_sock)
         }
 
         if (fds[1].revents & POLLIN) {
-            bytes_read = read(tcp_sock, buffer, sizeof(buffer));
+            bytes_read = recvfrom(udp_sock, buffer, sizeof(buffer), 0,
+                                  (struct sockaddr *)&from, &from_len);
             if (bytes_read > 0) {
                 if (write(uart_fd, buffer, bytes_read) < 0) {
                     perror("Error sending over UART");
                     break;
                 }
                 if (verbose) {
-                    printf("TCP -> UART: sent %zd bytes\n", bytes_read);
+                    printf("UDP(from %s) -> UART: sent %zd bytes\n",
+                           inet_ntoa(from.sin_addr), bytes_read);
                     if (verbose > 1)
-                        dump("TCP data", buffer, bytes_read);
+                        dump("UDP data", buffer, bytes_read);
                 }
-            } else if (bytes_read == 0) {
-                printf("TCP peer closed the connection.\n");
-                break;
             } else {
-                perror("Error reading from TCP");
+                perror("Error reading from UDP");
                 break;
             }
         }
@@ -354,93 +438,40 @@ void process_connection(int uart_fd, int tcp_sock)
     if (!run) {
         printf("Connection closed by user.\n");
     }
-    close(tcp_sock);
+    close(udp_sock);
 }
 
-int start_server(int tcp_port, int uart_fd)
+int main_loop(char *peer_ip, uint16_t udp_port, int uart_fd)
 {
-    int server_sock, client_sock;
-    struct sockaddr_in server_addr, client_addr;
-    socklen_t addr_len = sizeof(client_addr);
-    char buffer[BUFFER_SIZE];
-    ssize_t bytes_read;
-
-    server_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_sock < 0) {
-        perror("Socket creation error");
-        return -1;
-    }
-
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(tcp_port);
-
-    if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Binding socket error");
-        close(server_sock);
-        return -1;
-    }
-
-    if (listen(server_sock, 5) < 0) {
-        perror("Listen error");
-        close(server_sock);
-        return -1;
-    }
-
-    printf("TCP server started on port %d\n", tcp_port);
+    struct sockaddr_in sock_addr;
+    int udp_sock;
+    int rc = 0;
 
     while (run) {
-        client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &addr_len);
-        if (client_sock < 0) {
-            perror("Error accepting connection");
-            continue;
-        }
-        if (verbose)
-            printf("Client connected\n");
-
-        process_connection_func(uart_fd, client_sock);
-
-        close(client_sock);
-        if (verbose)
-            printf("Client disconnected\n");
-    }
-
-    close(server_sock);
-    printf("Server stopped\n");
-}
-
-int start_client(char *server_ip, uint16_t tcp_port, int uart_fd)
-{
-    struct sockaddr_in server_addr;
-    int tcp_sock;
-
-    while (run) {
-        tcp_sock = socket(AF_INET, SOCK_STREAM, 0);
-        if (tcp_sock < 0) {
+        udp_sock = socket(AF_INET, SOCK_DGRAM, 0);
+        sock = &udp_sock;
+        if (udp_sock < 0) {
             perror("Socket creation error");
             close(uart_fd);
             return -1;
         }
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_port = htons(tcp_port);
-        if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
-            perror("Invalid IP address");
-            close(tcp_sock);
-            return -1;
+        sock_addr.sin_family = AF_INET;
+        sock_addr.sin_port = htons(udp_port);
+        sock_addr.sin_addr.s_addr = INADDR_ANY;
+        rc = bind(udp_sock, (const struct sockaddr *)&sock_addr, sizeof(sock_addr));
+        if (rc < 0) {
+            perror("Error binding UDP socket");
+            close(udp_sock);
+            run = 0;
+            break;
         }
-        if (connect(tcp_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-            perror("Connection error");
-            sleep(5);
-            continue;
-        }
-        if (verbose)
-            printf("Connected to server %s:%d\n", server_ip, tcp_port);
-        process_connection_func(uart_fd, tcp_sock);
-        close(tcp_sock);
+        process_connection_func(uart_fd, udp_sock, peer_ip, udp_port);
+        close(udp_sock);
     }
     if (verbose)
         printf("Client stopped\n");
+    sock = NULL;
+    return rc;
 }
 
 int main(int argc, char *argv[])
@@ -448,18 +479,14 @@ int main(int argc, char *argv[])
     int uart_fd;
     int opt;
     char uart_device[255];
-    uint16_t tcp_port = TCP_SERVER_PORT;
+    uint16_t udp_port = UDP_PORT;
     int baud_rate = BAUD_RATE;
-    char server_ip[255];
-    int mode = MODE_DEFAULT; // MODE_DEFAULT: default, MODE_CLIENT: client, MODE_SERVER: server
     int ret;
     uint8_t *cbuffers;
 
     static struct option long_options[] = {
         {"uart", required_argument, NULL, 'u'},
         {"baudrate", required_argument, NULL, 'b'},
-        {"client", required_argument, NULL, 'c'},
-        {"server", no_argument, NULL, 's'},
         {"tcp-port", required_argument, NULL, 'p'},
         {"tx mode", no_argument, NULL, 't'},
         {"diag", no_argument, NULL, 'd'},
@@ -470,8 +497,7 @@ int main(int argc, char *argv[])
     };
     int long_index = 0;
     strncpy(uart_device, UART_DEVICE, sizeof(uart_device) - 1);
-    strncpy(server_ip, TCP_SERVER_IP, sizeof(server_ip) - 1);
-    while ((opt = getopt_long(argc, argv, "vVhu:c:sp:b:td", long_options, &long_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "vVhu:p:b:td", long_options, &long_index)) != -1) {
         switch (opt) {
             case 'V':
                 printf("Version %s\n", VERSION);
@@ -489,26 +515,9 @@ int main(int argc, char *argv[])
                 strncpy(uart_device, optarg, sizeof(uart_device) - 1);
                 printf("UART device set to: %s\n", optarg);
                 break;
-            case 'c': // Client mode
-                if (mode == MODE_SERVER) {
-                    fprintf(stderr, "ERROR: Can't use client mode with server mode.\n");
-                    return 1;
-                }
-                printf("Client mode enabled. Server IP: %s\n", optarg);
-                strncpy(server_ip, optarg, sizeof(server_ip) - 1);
-                mode = MODE_CLIENT;
-                break;
-            case 's': // Server mode
-                if (mode == MODE_CLIENT) {
-                    fprintf(stderr, "ERROR: Can't use server mode with client mode.\n");
-                    return 1;
-                }
-                printf("Server mode enabled.\n");
-                mode = MODE_SERVER;
-                break;
-            case 'p': // TCP port
-                tcp_port = atoi(optarg);
-                printf("TCP port set to: %d\n", tcp_port);
+            case 'p': // UDP port
+                udp_port = atoi(optarg);
+                printf("UDP port set to: %d\n", udp_port);
                 break;
             case 'b': // Baud rate
                 baud_rate = atoi(optarg);
@@ -526,16 +535,21 @@ int main(int argc, char *argv[])
                 return 1;
         }
     }
-    if (mode == MODE_DEFAULT)
-        mode = MODE_SERVER;
+    if (optind >= argc) {
+        help();
+        return 1;
+    }
+
+    char *peer_ip = argv[optind];
 
     if (!process_connection_func) {
         process_connection_func = process_connection;
     }
-    parser_init(&tcp_parser);
+    parser_init(&net_parser);
     parser_init(&uart_parser);
+    sock = NULL;
 
-    tcp_parser.errs = 0; tcp_parser.packets = 0;
+    net_parser.errs = 0; net_parser.packets = 0;
     uart_parser.errs = 0; uart_parser.packets = 0;
 
     cbuffers = (uint8_t *)malloc(CRSF_MAX_PACKET_SIZE * CBUF_NUM * sizeof(uint8_t));
@@ -548,11 +562,7 @@ int main(int argc, char *argv[])
     }
     signal(SIGINT, sigint_handler);
     run = 1;
-    if (mode == MODE_SERVER) {
-        ret = start_server(tcp_port, uart_fd);
-    } else if (mode == MODE_CLIENT) {
-        ret = start_client(server_ip, tcp_port, uart_fd);
-    }
+    ret = main_loop(peer_ip, udp_port, uart_fd);
     printf("Exiting...\n");
     close(uart_fd);
     return ret;

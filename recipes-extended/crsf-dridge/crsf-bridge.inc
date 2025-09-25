@@ -29,7 +29,9 @@ S = "${WORKDIR}"
 do_install() {
     cp ${SERVICE_NAME}.in ${SERVICE_FILE}
     sed -i "s/##CONN_PARAMS##/${CONN_PARAMS}/g" ${SERVICE_FILE}
+    sed -i "s/##TARGET_IP##/${TARGET_IP}/g" ${SERVICE_FILE}
     sed -i "s/##UART##/${UART}/g" ${SERVICE_FILE}
+
     install -d ${D}${bindir}
     install -d ${D}/root
     install -m 0755 ${TARGET} ${D}${bindir}
