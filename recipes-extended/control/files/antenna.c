@@ -34,6 +34,10 @@
 #define GPIO_CHIP_PATH "/dev/"GPIO_CHIP_NAME
 #define GPIO_MASTER_SW 25
 
+#define TIMER_PWM   0
+#define TIMER_POWER 1
+#define TIMER_INTERVAL 500 // Timer interval in ms
+
 #ifndef CONSUMER
 #define CONSUMER "antenna_control"
 #endif
@@ -45,6 +49,8 @@ struct switch_status {
     struct gpiod_line *line;
     int sw_status;
     int power_status;
+    int angle_cnt;
+    int power_cnt;
 };
 
 int verbose = 0;
@@ -117,21 +123,34 @@ void nv_set_pwm(int pwm)
     stored_pwm = pwm;
 }
 
-#define set_timeout(sec) _set_timeout_implement(sec, __func__)
-
-void _set_timeout_implement(int sec, const char *func)
+static inline void _set_timer_internal(void)
 {
     struct itimerval interval;
     int ret;
 
-    interval.it_value.tv_sec = sec;
-    interval.it_value.tv_usec = 0;
+    interval.it_value.tv_sec = TIMER_INTERVAL / 1000;
+    interval.it_value.tv_usec = (TIMER_INTERVAL % 1000) * 1000;
     interval.it_interval.tv_sec = 0;
     interval.it_interval.tv_usec = 0;
     ret = setitimer(ITIMER_REAL, &interval, NULL);
-    if (ret)
-        ret = errno;
-    LOG2("%s: set timer. Result %d\n", func, ret);
+    if (ret) {
+        LOG2("Set timer error %d\n", errno);
+    }
+}
+
+static void set_timer(int which)
+{
+    switch (which) {
+    case TIMER_PWM:
+        master_sw.angle_cnt = 10;
+        break;
+    case TIMER_POWER:
+        master_sw.power_cnt = 1;
+        break;
+    default:
+        return;
+    }
+    _set_timer_internal();
 }
 
 void set_pwm(int duty_cycle)
@@ -148,7 +167,7 @@ void set_pwm(int duty_cycle)
         }
         fprintf(fp, "%d\n", duty_cycle);
         fclose(fp);
-        set_timeout(5);
+        set_timer(TIMER_PWM);
     }
 }
 
@@ -169,12 +188,8 @@ static void set_power(void)
             if (pid) {
                 kill(pid, master_sw.power_status? SIGUSR1 : SIGUSR2);
             }
-        } else {
-            set_timeout(5);
         }
         fclose(fp);
-    } else {
-        set_timeout(5);
     }
 }
 
@@ -184,18 +199,26 @@ static void set_switch(struct switch_status *sw)
         set_power();
         sw->power_status = sw->sw_status;
     } else {
-        set_timeout(5);
+        set_timer(TIMER_POWER);
     }
 }
 
-void signal_handler(int sig)
+void signal_handler(int MAYBE_UNUSED sig)
 {
-    if (sig == SIGALRM) {
-        LOG2("SIGALARM %d %d\n", current_pwm, master_sw.sw_status);
-        if (stored_pwm != current_pwm) {
-            LOG1("Store pwm value %d.\n", current_pwm);
-            nv_set_pwm(current_pwm);
+    if (master_sw.angle_cnt) {
+        master_sw.angle_cnt--;
+        if (!master_sw.angle_cnt) {
+            LOG2("SIGALARM %d %d\n", current_pwm, master_sw.sw_status);
+            if (stored_pwm != current_pwm) {
+                LOG1("Store pwm value %d.\n", current_pwm);
+                nv_set_pwm(current_pwm);
+            }
+        } else {
+            _set_timer_internal();
         }
+    }
+    if (master_sw.power_cnt) {
+        master_sw.power_cnt--;
         set_power();
     }
 }
@@ -552,6 +575,7 @@ int main(int argc, char *argv[])
 
     char *server_ip = argv[optind];
     signal(SIGALRM, signal_handler);
+    signal(SIGPROF, signal_handler);
     prepare_pwm();
     struct gpiod_chip *chip;
     struct gpiod_line *line;
