@@ -56,7 +56,7 @@ static void *thread(void *arg MAYBE_UNUSED)
 
     // map the device to memory 
     fbp = (uint8_t*) mmap (0, screensize, PROT_READ | PROT_WRITE, MAP_SHARED, fbfd, 0);
-    if ((int)fbp == -1) {
+    if (fbp == (void *)-1) {
         printf ("Error: failed to map framebuffer device to memory\n");
         close (fbfd);
         exit (4);
