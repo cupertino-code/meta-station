@@ -164,10 +164,13 @@ static void set_power(void)
         int pid;
 
         memset(buf, 0, sizeof(buf));
-        fread(buf, sizeof(buf)-1, 1, fp);
-        pid = atoi(buf);
-        if (pid) {
-            kill(pid, master_sw.power_status? SIGUSR1 : SIGUSR2);
+        if (fread(buf, sizeof(buf)-1, 1, fp)) {
+            pid = atoi(buf);
+            if (pid) {
+                kill(pid, master_sw.power_status? SIGUSR1 : SIGUSR2);
+            }
+        } else {
+            set_timeout(5);
         }
         fclose(fp);
     } else {
@@ -223,7 +226,7 @@ static void send_status(int fd)
 
     ssize_t bytes_written =
         write(fd, buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_status) + 1);
-    LOG2("Sent %d bytes message: length=%d, CRC=0x%x\n", bytes_written, msg->length, *crc);
+    LOG2("Sent %d bytes message: length=%d, CRC=0x%x\n", (int)bytes_written, msg->length, *crc);
     dump(buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_status) + 1);
     if (bytes_written < 0)
         perror("Error writing to pipe");

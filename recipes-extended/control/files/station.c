@@ -334,7 +334,7 @@ static void send_message(struct gpio_data *data)
     ssize_t bytes_written = write(data->fd, buffer,
         sizeof(struct rotator_protocol) + sizeof(struct rotator_command) + 1);
 
-    LOG2("Sent %d bytes message: length=%d, CRC=0x%x\n", bytes_written, msg->length, *crc);
+    LOG2("Sent %d bytes message: length=%d, CRC=0x%x\n", (int)bytes_written, msg->length, *crc);
     dump(buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_command) + 1);
     if (bytes_written < 0)
         perror("Error writing to pipe");
@@ -530,7 +530,7 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
                             perror("Error sending over TCP");
                             break;
                         }
-                        LOG2("Pipe -> TCP %d bytes\n", bytes_read);
+                        LOG2("Pipe -> TCP %d bytes\n", (int)bytes_read);
                     }
                 }
 
@@ -545,7 +545,7 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
                                 status_timestamp = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
                             }
                         }
-                        LOG2("Received %d bytes from antenna\n", bytes_read);
+                        LOG2("Received %d bytes from antenna\n", (int)bytes_read);
                         dump(buffer, bytes_read);
                     } else if (bytes_read == 0) {
                         printf("TCP peer closed the connection.\n");
