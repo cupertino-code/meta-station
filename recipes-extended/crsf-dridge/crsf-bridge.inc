@@ -13,8 +13,10 @@ SRC_URI = " \
     file://crsf-bridge.in \
     file://circ_buf.c \
     file://circ_buf.h \
-    file://crsf_protocol.h \
 "
+
+DEPENDS += "libmisc"
+RDEPENDS:${PN} += "libmisc"
 
 TARGET = "crsf-bridge"
 SERVICE_NAME = "${TARGET}"
