@@ -12,7 +12,9 @@
 #include <poll.h>
 #include <getopt.h>
 #include <time.h>
+#include <sys/mman.h>
 #include "circ_buf.h"
+#include "shmem.h"
 #include "utils.h"
 #include "crsf_protocol.h"
 
@@ -63,6 +65,8 @@ struct cbuf_item {
     uint8_t buf[CRSF_MAX_PACKET_SIZE];
     size_t len;
 };
+
+struct shared_memory shm;
 
 #define CBUF_NUM 3
 
@@ -268,6 +272,18 @@ int parser(struct parser_state *parser, uint8_t byte)
     }
     return 0; // Message not complete yet
 }
+
+void process_tx_packet(struct shared_memory *shm, struct parser_state *parser)
+{
+    if (shm->ptr) {
+        struct shared_buffer *buf = (struct shared_buffer *)shm->ptr;
+        if (parser->type == 0x16 && parser->payload_length >= 22) {
+            memcpy(&buf->channels, parser->payload, parser->payload_length);
+            buf->flag = 1; // Indicate new data available
+        }
+    }
+}
+
 void process_connection_tx(int uart_fd, int udp_sock, const char *ip_addr, uint16_t udp_port)
 {
     char buffer[BUFFER_SIZE];
@@ -304,19 +320,22 @@ void process_connection_tx(int uart_fd, int udp_sock, const char *ip_addr, uint1
             printf("UART packets: %llu errors: %llu\r\033[A",
                    uart_parser.packets, uart_parser.errs);
         }
-        if (ret == 0) {
+        if (ret == 0)
             continue;
-        }
 
         if (fds[0].revents & POLLIN) {
             bytes_read = read(uart_fd, buffer, sizeof(buffer));
             if (bytes_read > 0) {
-                for (int i = 0; i < bytes_read; i++)
-                    if (parser(&uart_parser, buffer[i])) {
+                for (int i = 0; i < bytes_read; i++) {
+                    int packet_length = parser(&uart_parser, buffer[i]);
+                    if (packet_length) {
                         if (sendto(udp_sock, uart_parser.buffer, uart_parser.length, 0,
                                    (struct sockaddr *)&to, sizeof(to)) < 0) {
                             perror("Error sending over UDP");
                             continue;
+                        }
+                        if (packet_length > 0) {
+                            process_tx_packet(&shm, &uart_parser);
                         }
                         if (verbose) {
                             printf("UART -> UDP: sent %d bytes\n", uart_parser.length);
@@ -336,6 +355,7 @@ void process_connection_tx(int uart_fd, int udp_sock, const char *ip_addr, uint1
                                 perror("UART write error");
                             cbuf_drop(&cbuf);
                         }
+                    }
                 }
             } else if (bytes_read == 0) {
                 printf("UART closed the connection.\n");
@@ -567,6 +587,10 @@ int main(int argc, char *argv[])
     parser_init(&net_parser);
     parser_init(&uart_parser);
     sock = NULL;
+    if (tx_mode) {
+        printf("Starting in TX mode\n");
+        init_shared(DEFAULT_SHARED_NAME, &shm);
+    }
 
     net_parser.errs = 0; net_parser.packets = 0;
     uart_parser.errs = 0; uart_parser.packets = 0;
@@ -583,6 +607,9 @@ int main(int argc, char *argv[])
     run = 1;
     ret = main_loop(peer_ip, udp_port, uart_fd);
     printf("Exiting...\n");
+    if (tx_mode)
+        deinit_shared(&shm);
+    free(cbuffers);
     close(uart_fd);
     return ret;
 }
