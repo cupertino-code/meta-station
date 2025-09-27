@@ -300,8 +300,9 @@ void process_connection_tx(int uart_fd, int udp_sock, const char *ip_addr, uint1
             break;
         }
         if (diagnostic) {
-            printf("TCP  packets: %lu errors: %lu\n", net_parser.packets, net_parser.errs);
-            printf("UART packets: %lu errors: %lu\r\033[A", uart_parser.packets, uart_parser.errs);
+            printf("TCP  packets: %llu errors: %llu\n", net_parser.packets, net_parser.errs);
+            printf("UART packets: %llu errors: %llu\r\033[A",
+                   uart_parser.packets, uart_parser.errs);
         }
         if (ret == 0) {
             continue;
