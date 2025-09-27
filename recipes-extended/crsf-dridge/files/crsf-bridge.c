@@ -39,15 +39,21 @@ process_func_t process_connection_func = NULL;
 
 #define STATE_SOURCE    0
 #define STATE_LENGTH    1
-#define STATE_PAYLOAD   2
+#define STATE_TYPE      2
+#define STATE_PAYLOAD   3
+#define STATE_CRC       4
 
 struct parser_state {
     int state;
     int length;
     int expected_length;
+    int payload_length;
+    int payload_pos;
     uint64_t packets;   // parsed packets
     uint64_t errs;      // unparsed packets
     uint8_t buffer[CRSF_MAX_PACKET_SIZE];
+    uint8_t type;
+    uint8_t *payload;
 };
 
 struct parser_state net_parser;
@@ -222,17 +228,39 @@ int parser(struct parser_state *parser, uint8_t byte)
             parser->buffer[1] = byte;
             parser->length = 2;
             parser->expected_length = byte + 2;
+            parser->payload_length = byte - 2;
+            parser->payload_pos = 0;
+            parser->state = STATE_TYPE;
+            break;
+        case STATE_TYPE:
+            parser->buffer[parser->length++] = byte;
+            parser->type = byte;
             parser->state = STATE_PAYLOAD;
             break;
         case STATE_PAYLOAD:
+            if (!parser->payload_pos) {
+                parser->payload = &parser->buffer[parser->length];
+            }
+            parser->payload_pos++;
             parser->buffer[parser->length++] = byte;
-            if (parser->length >= parser->expected_length) {
+            if (parser->payload_pos >= parser->payload_length) {
                 // Message complete
-                parser->state = STATE_SOURCE;
+                parser->state = STATE_CRC;
                 parser->packets++;
-                return parser->length; // Return length of complete message
             }
             break;
+        case STATE_CRC:
+            parser->buffer[parser->length++] = byte;
+            parser->state = STATE_SOURCE;
+            uint8_t crc = crc8_data(&parser->buffer[2], parser->payload_length + 1);
+            if (crc == byte) {
+                parser->packets++;
+                return parser->length; // Return length of complete message
+            } else {
+                parser->errs++;
+                return -parser->length; // Return length of complete message
+            }
+
         default:
             parser->state = STATE_SOURCE; // Reset state on error
             parser->errs++;
