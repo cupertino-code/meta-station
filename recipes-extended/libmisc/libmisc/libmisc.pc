@@ -1,0 +1,15 @@
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include/libmisc
+
+Name: My Library
+Description: A shared library for multiple applications
+Version: 1.0.0
+
+# Шляхи для компілятора (де знаходяться .h файли)
+Cflags: -I${includedir}
+
+# Шляхи та прапорці для лінкера (де знаходяться .so/.a файли)
+# -lmylib вказує лінкеру шукати libmylib.so або libmylib.a
+Libs: -L${libdir} -lmisc
