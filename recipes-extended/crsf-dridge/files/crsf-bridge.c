@@ -13,6 +13,7 @@
 #include <getopt.h>
 #include <time.h>
 #include "circ_buf.h"
+#include "utils.h"
 #include "crsf_protocol.h"
 
 #define UART_DEVICE "/dev/ttyS0"
@@ -72,17 +73,6 @@ void help()
     printf("  -d, --diag                Output diagnostic data (packet counters)\n");
     printf("  -h, --help                Show this help message\n");
     printf("  -V, --version             Show version information\n");
-}
-
-void dump(const char *prefix, const char *data, size_t len)
-{
-    if (verbose) {
-        printf("%s: ", prefix);
-        for (size_t i = 0; i < len; i++) {
-            printf("%02x ", (unsigned char)data[i]);
-        }
-        printf("\n");
-    }
 }
 
 volatile int run;
