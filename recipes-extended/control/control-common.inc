@@ -5,14 +5,15 @@ LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda
 
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
-inherit systemd
+inherit systemd pkgconfig
 
 SRC_URI = " \
     file://Makefile \
-    file://utils.c \
     file://protocol.h \
     file://common.h \
 "
+DEPENDS += "libmisc"
+RDEPENDS:${PN} += "libmisc"
 
 SERVICE_NAME = "${TARGET}ctrl"
 SERVICE_FILE = "${SERVICE_NAME}.service"

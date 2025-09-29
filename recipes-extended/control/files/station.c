@@ -18,6 +18,8 @@
 #include "protocol.h"
 #include "visualisation.h"
 #include "common.h"
+#include "utils.h"
+#include "shmem.h"
 
 // Chip 0 on older Pi models, chip 4 on Pi 5.
 #define CHIP "/dev/gpiochip0"
@@ -51,7 +53,6 @@ struct buffer {
 
 struct gpio_data;
 typedef void (*cb_t)(struct gpio_data *data, int pin, int edge);
-int verbose = 0;
 
 struct pin_data {
     int gpio;
@@ -127,6 +128,7 @@ static volatile int run = 0;
 static uint64_t status_timestamp = 0;
 
 struct antenna_status antenna_status;
+
 
 #define NUM_PINS (sizeof(pins) / sizeof(pins[0]))
 
@@ -335,7 +337,7 @@ static void send_message(struct gpio_data *data)
         sizeof(struct rotator_protocol) + sizeof(struct rotator_command) + 1);
 
     LOG2("Sent %d bytes message: length=%d, CRC=0x%x\n", (int)bytes_written, msg->length, *crc);
-    dump(buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_command) + 1);
+    dump(NULL, buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_command) + 1);
     if (bytes_written < 0)
         perror("Error writing to pipe");
 }
@@ -546,7 +548,7 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
                             }
                         }
                         LOG2("Received %d bytes from antenna\n", (int)bytes_read);
-                        dump(buffer, bytes_read);
+                        dump(NULL, buffer, bytes_read);
                     } else if (bytes_read == 0) {
                         printf("TCP peer closed the connection.\n");
                         antenna_status.connect_status = 0;
@@ -655,6 +657,7 @@ int main(int argc, char *argv[])
     pthread_t reader_thread;
     run = 1;
     pthread_create(&reader_thread, NULL, &reader, (void *)&data);
+    init_shared(DEFAULT_SHARED_NAME, &antenna_status.shm);
     visualisation_init();
     if (start_server(tcp_port, pipe_fds[0], &data) != 0)
         run = 0;

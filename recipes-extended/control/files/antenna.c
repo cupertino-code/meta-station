@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include "protocol.h"
 #include "common.h"
+#include "utils.h"
  
 #define BUFFER_SIZE 256
 #define PWM_CHIP_PATH "/sys/class/pwm/pwmchip0"
@@ -53,7 +54,6 @@ struct switch_status {
     int power_cnt;
 };
 
-int verbose = 0;
 #define SOURCE_PWM      0
 #define SOURCE_SWITCH   1
 
@@ -250,7 +250,7 @@ static void send_status(int fd)
     ssize_t bytes_written =
         write(fd, buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_status) + 1);
     LOG2("Sent %d bytes message: length=%d, CRC=0x%x\n", (int)bytes_written, msg->length, *crc);
-    dump(buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_status) + 1);
+    dump(NULL, buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_status) + 1);
     if (bytes_written < 0)
         perror("Error writing to pipe");
 }
