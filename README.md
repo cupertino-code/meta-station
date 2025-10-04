@@ -68,3 +68,17 @@ directory:
   the case-sensitive attribute. This allows for the coexistence of files or folders with the same
   name but different casing (e.g., file.txt and File.txt) within that specific directory and its
   subdirectories.
+
+# IV. Pinouts
+  Station:
+    GPIO0 - TX
+    GPIO1 - RX
+    GPIO17, GPIO18 - Encoder
+    GPIO23 - Encoder button
+    GPIO25 - Power switch
+
+  Antenna
+    GPIO14 - TX
+    GPIO15 - RX
+    GPIO25 - Power
+    GPIO18 - Servo
