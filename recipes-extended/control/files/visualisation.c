@@ -133,14 +133,14 @@ static void *thread(void *arg MAYBE_UNUSED)
         if (temp_power || !antenna_status.updated)
             cairo_set_source_rgb (temp_cr, 1, 1, 1);
         else
-            cairo_set_source_rgb (temp_cr, 0.5, 0, 0);
+            cairo_set_source_rgb (temp_cr, 0.9, 0, 0);
         cairo_set_font_size (temp_cr, 12);
         cairo_text_extents (temp_cr, buf, &te);
         cairo_move_to (temp_cr, 20 - te.x_bearing, y - te.y_bearing);
         cairo_show_text (temp_cr, buf);
         y += te.height + 10;
         if (!antenna_status.connect_status) {
-            cairo_set_source_rgb (temp_cr, 0.8, 0, 0);
+            cairo_set_source_rgb (temp_cr, 0.9, 0, 0);
             sprintf(buf, "NO CONNECTION");
             cairo_text_extents (temp_cr, buf, &te);
             cairo_move_to (temp_cr, 20 - te.x_bearing, y - te.y_bearing);
