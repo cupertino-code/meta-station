@@ -1,0 +1,11 @@
+[Unit]
+Description=Set PAL standard for video-streamer
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/v4l2-ctl --set-standard pal
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
