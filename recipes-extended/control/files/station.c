@@ -18,6 +18,7 @@
 #include "protocol.h"
 #include "visualisation.h"
 #include "common.h"
+#include "config.h"
 #include "utils.h"
 #include "shmem.h"
 
@@ -38,6 +39,8 @@
 #ifndef CONSUMER
 #define CONSUMER "antenna_control"
 #endif
+
+#define CONFIG_FILE "/etc/vrxtbl.yaml"
 
 #define BUFFER_SIZE 100
 
@@ -656,6 +659,7 @@ int main(int argc, char *argv[])
     memset(&antenna_status, 0, sizeof(antenna_status));
     pthread_t reader_thread;
     run = 1;
+    load_config(CONFIG_FILE);
     pthread_create(&reader_thread, NULL, &reader, (void *)&data);
     init_shared(DEFAULT_SHARED_NAME, &antenna_status.shm);
     visualisation_init();
