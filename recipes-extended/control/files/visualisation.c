@@ -12,10 +12,15 @@
 
 #include "visualisation.h"
 #include "common.h"
+#include "utils.h"
+#include "config.h"
 
 static volatile int run;
 
 static pthread_t pthread;
+
+#define PADDING_H  5.0
+#define PADDING_V  3.0
 
 static void *thread(void *arg MAYBE_UNUSED)
 {
@@ -79,7 +84,7 @@ static void *thread(void *arg MAYBE_UNUSED)
         double rad;
         double sn, cs;
         double x, y;
-        char buf[30];
+        char buf[100];
         cairo_text_extents_t te;
         int temp_angle;
         int temp_power;
@@ -120,7 +125,7 @@ static void *thread(void *arg MAYBE_UNUSED)
         x = X_OFFSET + RADIUS + RADIUS * sin(-120.0 * M_PI / 180);
         double x1 = X_OFFSET + RADIUS + RADIUS * sin(120.0 * M_PI / 180);
         cairo_set_source_rgb (temp_cr, 1, 1, 1);
-        cairo_select_font_face (temp_cr, "Georgia",
+        cairo_select_font_face (temp_cr, "Sans Serif",
             CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
         cairo_set_font_size (temp_cr, 16);
         cairo_text_extents (temp_cr, buf, &te);
@@ -156,7 +161,37 @@ static void *thread(void *arg MAYBE_UNUSED)
             cairo_show_text (temp_cr, buf);
         }
 #endif
-        cairo_set_source_surface (cr, temp_surface, 0, 0);
+        if (temp_power && antenna_status.shm.ptr) {
+            struct shared_buffer *shbuf = (struct shared_buffer *)antenna_status.shm.ptr;
+            struct channel_data data[CHANNELS_CNT];
+            unsigned int size = CHANNELS_CNT;
+
+            if (shbuf->flag) {
+                if (get_chan_info(&shbuf->channels, data, &size)) {
+                    cairo_set_font_size (temp_cr, 16);
+                    for (unsigned int i=0; i < size; i++) {
+                        y += te.height + 10;
+                        sprintf(buf, "%s:%d", data[i].band_name, data[i].freq);
+                        cairo_text_extents(temp_cr, buf, &te);
+                        if (data[i].selected) {
+                            double rect_width = te.width + 2 * PADDING_H;
+                            double rect_height = te.height + 2 * PADDING_V;
+                            cairo_set_source_rgb(temp_cr, 0.8, 0.8, 0.8);
+                            cairo_rectangle(temp_cr,
+                                    20 - te.x_bearing - PADDING_H, y - PADDING_V,
+                                    rect_width, rect_height);
+                            cairo_fill(temp_cr);
+                            cairo_set_source_rgb(temp_cr, 0, 0, 0);
+                        } else {
+                            cairo_set_source_rgb(temp_cr, 0.8, 0.8, 0.8);
+                        }
+                        cairo_move_to(temp_cr, 20 - te.x_bearing, y - te.y_bearing);
+                        cairo_show_text(temp_cr, buf);
+                    }
+                }
+            }
+        }
+        cairo_set_source_surface(cr, temp_surface, 0, 0);
         cairo_set_operator (cr, CAIRO_OPERATOR_SOURCE);
         cairo_rectangle (cr, 0, 0, AREA_WIDTH, AREA_HEIGHT);
         cairo_fill (cr);

@@ -1,16 +1,20 @@
-LDLIBS = -lpthread -lgpiod -lm -lcairo
-CFLAGS = -pedantic -Wall -Wextra -O2 -g
+LDLIBS += -lpthread -lgpiod -lm -lcairo -lstdc++ -lyaml-cpp
+FLAGS = -Wall -Wextra -O2 -g
 
-CFLAGS += $$(pkg-config --cflags libmisc)
+FLAGS += $$(pkg-config --cflags libmisc)
+CFLAGS += $(FLAGS)
+CPPFLAGS += $(FLAGS)
 LDLIBS += $$(pkg-config --libs libmisc)
 
 all: station antenna
 
-station: station.o visualisation.o
+station: station.o visualisation.o config.o
 
 station.o: station.c protocol.h common.h
 
 visualisation.o: visualisation.c visualisation.h
+
+config.o: config.cpp
 
 antenna: antenna.o
 
