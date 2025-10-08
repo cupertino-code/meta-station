@@ -146,6 +146,7 @@ static void *thread(void *arg MAYBE_UNUSED)
             cairo_move_to (temp_cr, 20 - te.x_bearing, y - te.y_bearing);
             cairo_show_text (temp_cr, buf);
         }
+#if 0
         y += te.height + 10;
         if (antenna_status.updated) {
             sprintf(buf, "Battery  %d.%d", antenna_status.vbat / 1000, antenna_status.vbat % 1000 / 100);
@@ -154,6 +155,7 @@ static void *thread(void *arg MAYBE_UNUSED)
             cairo_move_to (temp_cr, 20 - te.x_bearing, y - te.y_bearing);
             cairo_show_text (temp_cr, buf);
         }
+#endif
         cairo_set_source_surface (cr, temp_surface, 0, 0);
         cairo_set_operator (cr, CAIRO_OPERATOR_SOURCE);
         cairo_rectangle (cr, 0, 0, AREA_WIDTH, AREA_HEIGHT);
