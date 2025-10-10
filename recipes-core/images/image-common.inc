@@ -53,8 +53,7 @@ DEV_TOOLS = " \
     raspi-gpio \
     tmux \
 "
-
-# Додаємо підтримку SSH-сервера (OpenSSH)
+# SSH-server support (OpenSSH)
 IMAGE_FEATURES += "ssh-server-dropbear"
 
 # Password for root user
