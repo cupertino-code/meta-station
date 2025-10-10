@@ -11,3 +11,5 @@ SPECIFIC_TOOLS = " \
 GSTREAMER:append = " \
     gstreamer1.0-libav \
 "
+
+IMAGE_INSTALL:append = " udev udev-extraconf"
