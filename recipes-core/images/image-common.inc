@@ -54,7 +54,7 @@ DEV_TOOLS = " \
     tmux \
 "
 # SSH-server support (OpenSSH)
-IMAGE_FEATURES += "ssh-server-dropbear"
+#IMAGE_FEATURES += "ssh-server-dropbear"
 
 # Password for root user
 #EXTRA_USERS_PARAMS = "usermod -P root root;"
