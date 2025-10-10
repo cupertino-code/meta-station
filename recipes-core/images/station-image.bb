@@ -5,7 +5,9 @@ SPECIFIC_TOOLS = " \
     station-control \
     crsf-station \
     video-out \
+    fontconfig \
 "
+
 GSTREAMER:append = " \
     gstreamer1.0-libav \
 "
