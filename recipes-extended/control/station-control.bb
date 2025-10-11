@@ -9,7 +9,6 @@ SRC_URI += " \
     file://visualisation.h \
     file://vrxtbl.yaml \
 "
-DEPENDS += "yaml-cpp"
 TARGET = "station"
 RDEPENDS:${PN} += "liberation-fonts"
 

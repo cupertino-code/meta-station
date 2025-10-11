@@ -12,7 +12,7 @@ SRC_URI = " \
     file://protocol.h \
     file://common.h \
 "
-DEPENDS += "libmisc"
+DEPENDS += "libmisc yaml-cpp"
 RDEPENDS:${PN} += "libmisc"
 
 SERVICE_NAME = "${TARGET}ctrl"
