@@ -11,5 +11,11 @@ SPECIFIC_TOOLS = " \
 GSTREAMER:append = " \
     gstreamer1.0-libav \
 "
+KERNEL_MODULES = " \
+    mnthlp \
+"
 
-IMAGE_INSTALL:append = " udev udev-extraconf"
+IMAGE_INSTALL:append = " \
+    udev udev-extraconf \
+    ${KERNEL_MODULES} \
+"
