@@ -43,6 +43,7 @@
 #define CONSUMER "antenna_control"
 #endif
 
+#define PID_FILE "/tmp/camera-stream.pid"
 static int current_pwm = PWM_CENTER;
 static int stored_pwm = 0;
 
@@ -177,13 +178,13 @@ static void set_power(void)
 
     gpiod_line_set_value(master_sw.line, master_sw.sw_status);
     master_sw.power_status = master_sw.sw_status;
-    fp = fopen("/tmp/camera-stream.pid", "r");
+    fp = fopen(PID_FILE, "r");
     if (fp) {
         char buf[11];
         int pid;
 
         memset(buf, 0, sizeof(buf));
-        if (fread(buf, sizeof(buf)-1, 1, fp)) {
+        if (fread(buf, 1, sizeof(buf)-1, fp)) {
             pid = atoi(buf);
             if (pid) {
                 kill(pid, master_sw.power_status? SIGUSR1 : SIGUSR2);
