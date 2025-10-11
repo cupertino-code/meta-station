@@ -3,6 +3,9 @@
 # This script is called from our systemd unit file to mount or unmount
 # a USB drive.
 
+MOUNT_HELPER="/sys/kernel/mount_helper/mount_point"
+MODULE="mnthlp"
+
 usage()
 {
     echo "Usage: $0 {add|remove} device_name (e.g. sdb1)"
@@ -20,8 +23,15 @@ DEVICE="/dev/${DEVBASE}"
 # See if this drive is already mounted, and if so where
 MOUNT_POINT=$(/bin/mount | /bin/grep ${DEVICE} | /usr/bin/awk '{ print $3 }')
 
+load_module()
+{
+    lsmod | grep $MODULE
+    [ $? -ne 0 ] && modprobe $MODULE
+}
+
 do_mount()
 {
+    load_module
     if [[ -n ${MOUNT_POINT} ]]; then
         echo "Warning: ${DEVICE} is already mounted at ${MOUNT_POINT}"
         exit 1
@@ -57,12 +67,13 @@ do_mount()
         /bin/rmdir ${MOUNT_POINT}
         exit 1
     fi
-
+    [ -f ${MOUNT_HELPER} ] && echo ${MOUNT_POINT} > ${MOUNT_HELPER}
     echo "**** Mounted ${DEVICE} at ${MOUNT_POINT} ****"
 }
 
 do_unmount()
 {
+    load_module
     if [[ -z ${MOUNT_POINT} ]]; then
         echo "Warning: ${DEVICE} is not mounted"
     else
@@ -82,6 +93,7 @@ do_unmount()
             fi
         fi
     done
+    [ -f ${MOUNT_HELPER} ] && echo "" > ${MOUNT_HELPER}
 }
 
 case "${ACTION}" in
