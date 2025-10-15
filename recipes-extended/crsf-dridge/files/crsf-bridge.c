@@ -35,6 +35,9 @@ typedef void (*process_func_t)(int uart_fd, int udp_sock, const char *ip_addr, u
 
 process_func_t process_connection_func = NULL;
 
+#define DSCP_EF 0x2e // 46
+#define IPTOS_EF (DSCP_EF << 2)
+
 #ifndef CLOCK_MONOTONIC
 #define CLOCK_MONOTONIC 1
 #endif
@@ -494,6 +497,14 @@ int main_loop(char *peer_ip, uint16_t udp_port, int uart_fd)
             close(uart_fd);
             return -1;
         }
+        int tos = IPTOS_EF;
+        // Setup Expedited Forwarding (EF).
+        if (setsockopt(udp_sock, IPPROTO_IP, IP_TOS, &tos, sizeof(tos)) < 0)
+            perror("setsockopt IP_TOS failed");
+        int priority = 6;
+
+        if (setsockopt(udp_sock, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority)) < 0)
+            perror("setsockopt SO_PRIORITY failed");
         sock_addr.sin_family = AF_INET;
         sock_addr.sin_port = htons(udp_port);
         sock_addr.sin_addr.s_addr = INADDR_ANY;
