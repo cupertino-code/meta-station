@@ -17,7 +17,8 @@ SRC_URI = " \
 
 DEPENDS += "libmisc"
 RDEPENDS:${PN} += "libmisc"
-
+TARGET_IP = "${@bb.utils.contains('MACHINE_FEATURES', 'antenna', '${STATION_IP}', '${ANTENNA_IP}', d)}"
+CONN_PARAMS = "${@bb.utils.contains('MACHINE_FEATURES', 'station', '-t', '', d)} -p ${CRSF_PORT}"
 TARGET = "crsf-bridge"
 SERVICE_NAME = "${TARGET}"
 SERVICE_FILE = "${SERVICE_NAME}.service"
@@ -43,3 +44,4 @@ do_install() {
 }
 
 FILES:${PN} += "${bindir}/${TARGET} ${systemd_system_unitdir}/${SERVICE_FILE} /root/${TARGET}"
+include crsf-debug.inc
