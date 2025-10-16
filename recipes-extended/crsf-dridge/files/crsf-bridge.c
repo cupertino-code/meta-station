@@ -23,7 +23,7 @@
 
 #define UDP_PORT 7300
 
-#define BUFFER_SIZE 256
+#define BUFFER_SIZE 64
 
 #define VERSION "1.0"
 
