@@ -333,7 +333,7 @@ void process_connection_tx(int uart_fd, int udp_sock, const char *ip_addr, uint1
             break;
         }
         if (diagnostic) {
-            printf("TCP  packets: %llu errors: %llu\n", net_parser.packets, net_parser.errs);
+            printf("UDP  packets: %llu errors: %llu\n", net_parser.packets, net_parser.errs);
             printf("UART packets: %llu errors: %llu\r\033[A",
                    uart_parser.packets, uart_parser.errs);
         }
@@ -361,7 +361,7 @@ void process_connection_tx(int uart_fd, int udp_sock, const char *ip_addr, uint1
                         }
                         if (!cbuf_empty(&cbuf)) {
                             uint8_t *buf;
-                            
+
                             buf = cbuf_get_ptr(&cbuf);
                             if (verbose) {
                                 printf("Writing to UART %d bytes\n", buf[1]);
