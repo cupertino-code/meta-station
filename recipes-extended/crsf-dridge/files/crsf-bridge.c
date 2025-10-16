@@ -127,6 +127,14 @@ int setup_uart(char *device, int MAYBE_UNUSED baud_rate)
         close(uart_fd);
         return -1;
     }
+    int flags = fcntl(uart_fd, F_GETFL, 0);
+    if (flags != -1) {
+        flags |= O_NONBLOCK;
+        if (fcntl(uart_fd, F_SETFL, flags) == -1)
+            perror("UART: Set non-blocking mode");
+    } else {
+        perror("UART: Get descriptor flags");
+    }
     if (verbose)
         printf("UART configured on %s with baud rate %d\n", device, baud_rate);
     return uart_fd;
@@ -496,6 +504,14 @@ int main_loop(char *peer_ip, uint16_t udp_port, int uart_fd)
             perror("Socket creation error");
             close(uart_fd);
             return -1;
+        }
+        int flags = fcntl(udp_sock, F_GETFL, 0);
+        if (flags != -1) {
+            flags |= O_NONBLOCK;
+            if (fcntl(udp_sock, F_SETFL, flags) == -1)
+                perror("UDP: Set non-blocking mode");
+        } else {
+            perror("UDP: Get descriptor flags");
         }
         int tos = IPTOS_EF;
         // Setup Expedited Forwarding (EF).
