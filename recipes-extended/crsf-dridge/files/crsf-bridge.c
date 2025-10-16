@@ -208,14 +208,20 @@ void parser_init(struct parser_state *parser)
     parser->expected_length = 0;
 }
 
-int parser(struct parser_state *parser, uint8_t byte)
+static inline uint64_t get_timestamp()
 {
     struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+int parser(struct parser_state *parser, uint8_t byte)
+{
     uint64_t timestamp;
     static uint64_t last_timestamp = 0;
 
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    timestamp = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+    timestamp = get_timestamp();
     if (last_timestamp) {
         if (parser->state != STATE_SOURCE && (timestamp - last_timestamp) > 1) {
             parser->state = STATE_SOURCE;
