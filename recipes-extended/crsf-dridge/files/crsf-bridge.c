@@ -223,7 +223,7 @@ int parser(struct parser_state *parser, uint8_t byte)
 
     timestamp = get_timestamp();
     if (last_timestamp) {
-        if (parser->state != STATE_SOURCE && (timestamp - last_timestamp) > 1) {
+        if (parser->state != STATE_SOURCE && (timestamp - last_timestamp) > 10) {
             parser->state = STATE_SOURCE;
             parser->errs++;
         }
