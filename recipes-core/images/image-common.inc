@@ -47,6 +47,10 @@ GSTREAMER = " \
     v4l-utils \
 "
 
+SPECIFIC_TOOLS = " \
+    crsf-bridge \
+"
+
 DEV_TOOLS = " \
     minicom \
     socat \
