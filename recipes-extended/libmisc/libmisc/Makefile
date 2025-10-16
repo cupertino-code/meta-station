@@ -1,17 +1,14 @@
 CFLAGS  += -Wall -fPIC -I. -MMD
 LDFLAGS += -L. -Wl,--hash-style=gnu
 
-# Назви файлів
 LIB_NAME    = misc
 SRC         = shmem.c utils.c
 OBJ         = $(SRC:.c=.o)
 HDRS        = shmem.h utils.h crsf_protocol.h
 
-# Назви бібліотек
 STATIC_LIB  = lib$(LIB_NAME).a
 SHARED_LIB  = lib$(LIB_NAME).so
 
-# Каталоги встановлення
 INSTALL_DIR ?= target
 LIB_INSTALL_DIR = $(INSTALL_DIR)/usr/lib
 INC_INSTALL_DIR = $(INSTALL_DIR)/usr/include/libmisc
