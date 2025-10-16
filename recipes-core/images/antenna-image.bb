@@ -1,10 +1,9 @@
 # Image for antenna side
 require image-common.inc
 
-SPECIFIC_TOOLS = " \
+SPECIFIC_TOOLS:append = " \
     antenna-control \
     camera-server \
-    crsf-antenna \
 "
 GSTREAMER:append = " \
     gstreamer1.0-libav \

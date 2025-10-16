@@ -1,15 +1,15 @@
 # Image for station side
 require image-common.inc
 
-SPECIFIC_TOOLS = " \
+SPECIFIC_TOOLS:append = " \
     station-control \
-    crsf-station \
     video-out \
     fontconfig \
 "
 
 GSTREAMER:append = " \
     gstreamer1.0-libav \
+    gstreamer1.0-plugins-ugly \
 "
 KERNEL_MODULES = " \
     mnthlp \
