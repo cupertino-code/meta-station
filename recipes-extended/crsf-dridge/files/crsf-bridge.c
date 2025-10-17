@@ -384,8 +384,9 @@ void process_connection_tx(int uart_fd, int udp_sock, const char *ip_addr, uint1
         }
 
         if (fds[1].revents & POLLIN) {
-            bytes_read = recvfrom(udp_sock, buffer, sizeof(buffer), 0, (struct sockaddr *)&from,
-                                 &from_len);
+            from_len = sizeof(struct sockaddr_in);
+            bytes_read = recvfrom(udp_sock, buffer, sizeof(buffer), 0,
+                                  (struct sockaddr *)&from, &from_len);
             if (bytes_read > 0) {
                 for (int i = 0; i < bytes_read; i++) {
                     int len = parser(&net_parser, buffer[i]);
@@ -472,6 +473,7 @@ void process_connection(int uart_fd, int udp_sock, const char *ip_addr, uint16_t
         }
 
         if (fds[1].revents & POLLIN) {
+            from_len = sizeof(struct sockaddr_in);
             bytes_read = recvfrom(udp_sock, buffer, sizeof(buffer), 0,
                                   (struct sockaddr *)&from, &from_len);
             if (bytes_read > 0) {
