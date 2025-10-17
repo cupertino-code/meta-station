@@ -3,7 +3,7 @@ require basic-dev-image.bb
 SPECIFIC_TOOLS:append = " \
     station-control-dev \
     libmisc-dev \
-    crsf-station-dev \
+    crsf-bridge-dev \
     yaml-cpp-dev \
 "
 
