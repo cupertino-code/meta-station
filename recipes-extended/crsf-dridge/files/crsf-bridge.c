@@ -233,7 +233,8 @@ int parser(struct parser_state *parser, uint8_t byte)
     switch (parser->state) {
         case STATE_SOURCE:
             if (byte == CRSF_ADDRESS_RADIO_TRANSMITTER ||
-                byte == CRSF_ADDRESS_CRSF_TRANSMITTER) {
+                byte == CRSF_ADDRESS_CRSF_TRANSMITTER ||
+                byte == CRSF_ADDRESS_FLIGHT_CONTROLLER) {
                 parser->buffer[0] = byte;
                 parser->state = STATE_LENGTH;
             }
