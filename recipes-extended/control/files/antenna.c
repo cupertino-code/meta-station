@@ -26,6 +26,8 @@
 #define PWM_PERIOD 20000000 // 20ms period for 50Hz frequency
 #define PWM_DUTY_CYCLE_MIN 600000 // 600us pulse width
 #define PWM_DUTY_CYCLE_MAX 2400000 // 2.4ms pulse width
+#define TICK_FAST_INCREMENT 5
+#define TICK_PWM 3000
 #define ANGLE_MIN  -120
 #define ANGLE_MAX  120
 #define PWM_CENTER (PWM_DUTY_CYCLE_MIN + PWM_DUTY_CYCLE_MAX) / 2
@@ -265,8 +267,8 @@ void process_command(struct rotator_command *command)
 
     if (_likely(!first))
     {
-        int increment = command->switches & SWITCH_ENCODER ? 10 : 1;
-        increment *= 3000;
+        int increment = command->switches & SWITCH_ENCODER ? TICK_FAST_INCREMENT : 1;
+        increment *= TICK_PWM;
         current_pwm += delta * increment;
     } else {
         first = 0;
