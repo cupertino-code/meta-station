@@ -36,9 +36,7 @@ do_install() {
     sed -i "s/##UART##/${UART}/g" ${SERVICE_FILE}
 
     install -d ${D}${bindir}
-    install -d ${D}/root
     install -m 0755 ${TARGET} ${D}${bindir}
-    install -m 0755 ${TARGET} ${D}/root
     install -d ${D}${systemd_system_unitdir}
     install -m 0644 ${SERVICE_FILE} ${D}${systemd_system_unitdir}
 }
