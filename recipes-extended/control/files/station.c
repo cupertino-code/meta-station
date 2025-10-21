@@ -14,6 +14,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <getopt.h>
+#include <errno.h>
+#include <signal.h>
 
 #include "protocol.h"
 #include "visualisation.h"
@@ -30,17 +32,18 @@
 #define GPIO_PIN_B 18
 #define GPIO_PIN_BTN 23
 #define GPIO_PIN_MASTER 25
-#define GPIO_PIN_GST 22
+#define GPIO_PIN_RECORD 24
 
 #define RISING_EDGE GPIO_V2_LINE_EVENT_RISING_EDGE
 #define FALLING_EDGE GPIO_V2_LINE_EVENT_FALLING_EDGE
 #define GPIO_V2_LINE_FLAG_EVENT_BOTH_EDGES (GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_EDGE_FALLING)
 
 #ifndef CONSUMER
-#define CONSUMER "antenna_control"
+#define CONSUMER "station_control"
 #endif
 
 #define CONFIG_FILE "/etc/vrxtbl.yaml"
+#define STREAM_VIEW_PID_FILE "/tmp/stream-viewer.pid"
 
 #define BUFFER_SIZE 100
 
@@ -64,6 +67,7 @@ struct pin_data {
 };
 
 struct watch_pin {
+    int index;
     int gpio;
     int state;
     cb_t callback;
@@ -94,10 +98,10 @@ struct pin_data enc_btn_data = {
     .btn_num = SWITCH_ENCODER_NUM,
 };
 
-struct pin_data gst_sw_data = {
-    .gpio = GPIO_PIN_GST,
+struct pin_data record_sw_data = {
+    .gpio = GPIO_PIN_RECORD,
     .pin_flags = 0,
-    .btn_num = SWITCH_GST_NUM,
+    .btn_num = SWITCH_RECORD_NUM,
 };
 
 struct pin_data master_sw_data = {
@@ -108,13 +112,20 @@ struct pin_data master_sw_data = {
 
 static void encoder_callback(struct gpio_data *data, int index, int edge);
 static void button_callback(struct gpio_data *data, int index, int edge);
+static void record_button_callback(struct gpio_data *data, int index, int edge);
+
+#define INDEX_PIN_A         0
+#define INDEX_PIN_B         1
+#define INDEX_PIN_BTN       2
+#define INDEX_PIN_MASTER    3
+#define INDEX_PIN_RECORD    4
 
 struct watch_pin pins[] = {
-    {GPIO_PIN_A, 0, encoder_callback, &pin_a_data, -1},
-    {GPIO_PIN_B, 0, encoder_callback, &pin_b_data, -1},
-    {GPIO_PIN_BTN, 0, button_callback, &enc_btn_data, -1},
-    {GPIO_PIN_MASTER, 0, button_callback, &master_sw_data, -1},
-    {GPIO_PIN_GST, 0, button_callback, &gst_sw_data, -1}
+    {INDEX_PIN_A,      GPIO_PIN_A,      0, encoder_callback,       &pin_a_data,     -1},
+    {INDEX_PIN_B,      GPIO_PIN_B,      0, encoder_callback,       &pin_b_data,     -1},
+    {INDEX_PIN_BTN,    GPIO_PIN_BTN,    0, button_callback,        &enc_btn_data,   -1},
+    {INDEX_PIN_MASTER, GPIO_PIN_MASTER, 0, button_callback,        &master_sw_data, -1},
+    {INDEX_PIN_RECORD, GPIO_PIN_RECORD, 0, record_button_callback, &record_sw_data,  -1}
 };
 
 struct gpio_data {
@@ -132,7 +143,6 @@ static uint64_t status_timestamp = 0;
 
 struct antenna_status antenna_status;
 
-
 #define NUM_PINS (sizeof(pins) / sizeof(pins[0]))
 
 #define PIN_A 0
@@ -148,6 +158,27 @@ static void help()
     printf("  -v, --verbose             Increase verbosity level (can be used multiple times)\n");
     printf("  -h, --help                Show this help message\n");
     printf("  -V, --version             Show version information\n");
+}
+
+static inline void _set_timer_internal(int msec)
+{
+    struct itimerval itimer;
+    int ret;
+
+    itimer.it_value.tv_sec = msec / 1000;
+    itimer.it_value.tv_usec = (msec % 1000) * 1000;
+    itimer.it_interval.tv_sec = 0;
+    itimer.it_interval.tv_usec = 0;
+    ret = setitimer(ITIMER_REAL, &itimer, NULL);
+    if (ret) {
+        LOG2("Set timer error %d\n", errno);
+    }
+}
+
+static void record_button_callback(struct gpio_data *data MAYBE_UNUSED,
+                                   int index MAYBE_UNUSED, int edge MAYBE_UNUSED)
+{
+    _set_timer_internal(30);
 }
 
 static void encoder_callback(struct gpio_data *data, int index, int edge)
@@ -239,6 +270,37 @@ int check_switch(struct gpio_data *data, int sw_index)
     }
     send_message(data);
     return 1;
+}
+
+static void signal_handler(int MAYBE_UNUSED sig)
+{
+    if (sig == SIGALRM) {
+        struct timespec ts;
+        uint64_t timestamp;
+        struct gpio_v2_line_values values;
+
+        values.mask = 1;
+        if (ioctl(pins[INDEX_PIN_RECORD].fd, GPIO_V2_LINE_GET_VALUES_IOCTL, &values) < 0) {
+            perror("Failed to get GPIO value");
+            return;
+        }
+        if (values.bits & 1) {
+            FILE *fp = fopen(STREAM_VIEW_PID_FILE, "r");
+            if (fp) {
+                char buf[11];
+                int pid;
+
+                memset(buf, 0, sizeof(buf));
+                if (fread(buf, 1, sizeof(buf)-1, fp)) {
+                    pid = atoi(buf);
+                    if (pid) {
+                        kill(pid, SIGUSR1);
+                    }
+                }
+                fclose(fp);
+            }
+        }
+    }
 }
 
 void *reader(void *arg)
@@ -659,6 +721,7 @@ int main(int argc, char *argv[])
     memset(&antenna_status, 0, sizeof(antenna_status));
     pthread_t reader_thread;
     run = 1;
+    signal(SIGALRM, signal_handler);
     load_config(CONFIG_FILE);
     pthread_create(&reader_thread, NULL, &reader, (void *)&data);
     init_shared(DEFAULT_SHARED_NAME, &antenna_status.shm);
