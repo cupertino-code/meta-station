@@ -186,7 +186,7 @@ static void encoder_callback(struct gpio_data *data, int index, int edge)
     struct timespec ts;
     uint64_t timestamp;
     int curr_counter = 0;
-    
+
     if (!(data->switch_status & SWITCH_ANTENNA))
         return;
     if (edge == RISING_EDGE)
@@ -200,9 +200,7 @@ static void encoder_callback(struct gpio_data *data, int index, int edge)
                 curr_counter--;
             else
                 curr_counter++;
-        }
-        else if (index == PIN_B)
-        {
+        } else if (index == PIN_B) {
             if (pins[PIN_A].state == pins[PIN_B].state)
                 curr_counter++;
             else
@@ -344,26 +342,22 @@ void *reader(void *arg)
             }
             continue;
         }
-        
-        if (poll_result < 0) {
+
+        if (poll_result < 0)
             continue;
-        }
-        
+
         for (i = 0; i < NUM_PINS; i++) {
             if (poll_descriptors[i].revents & POLLIN) {
 
                 int read_result = read(poll_descriptors[i].fd, &event, sizeof(event));
 
-                if (read_result == -1) {
-                    // printf("Read error.\n");
+                if (read_result == -1)
                     continue;
-                }
 
                 if (event.id == GPIO_V2_LINE_EVENT_RISING_EDGE ||
                     event.id == GPIO_V2_LINE_EVENT_FALLING_EDGE) {
-                    if (data->pins[i].callback) {
+                    if (data->pins[i].callback)
                         data->pins[i].callback(data, i, event.id);
-                    }
                 }
             }
         }
@@ -434,7 +428,7 @@ int parse_byte(uint8_t byte)
     static int current_length;
     static struct buffer buffer;
     static int wrong_message = 0;
-    
+
     switch (state) {
         case STATE_START_BYTE:
             if (byte != PROTOCOL_START_BYTE)

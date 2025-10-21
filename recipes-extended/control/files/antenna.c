@@ -136,9 +136,8 @@ static inline void _set_timer_internal(void)
     interval.it_interval.tv_sec = 0;
     interval.it_interval.tv_usec = 0;
     ret = setitimer(ITIMER_REAL, &interval, NULL);
-    if (ret) {
+    if (ret)
         LOG2("Set timer error %d\n", errno);
-    }
 }
 
 static void set_timer(int which)
@@ -265,8 +264,7 @@ void process_command(struct rotator_command *command)
     int delta = command->position - last_position;
     int m_sw_status = (command->switches >> SWITCH_ANTENNA_NUM) & 1;
 
-    if (_likely(!first))
-    {
+    if (_likely(!first)) {
         int increment = command->switches & SWITCH_ENCODER ? TICK_FAST_INCREMENT : 1;
         increment *= TICK_PWM;
         current_pwm += delta * increment;
@@ -280,9 +278,9 @@ void process_command(struct rotator_command *command)
     }
     if (delta) {
         if (current_pwm < PWM_DUTY_CYCLE_MIN) {
-             current_pwm = PWM_DUTY_CYCLE_MIN;
+            current_pwm = PWM_DUTY_CYCLE_MIN;
         } else if (current_pwm > PWM_DUTY_CYCLE_MAX) {
-             current_pwm = PWM_DUTY_CYCLE_MAX;
+            current_pwm = PWM_DUTY_CYCLE_MAX;
         }
         set_pwm(current_pwm);
     }
@@ -292,7 +290,7 @@ void process_command(struct rotator_command *command)
         set_switch(&master_sw);
     }
     LOG1("position=%d(delta %d), switches=%d duty_cycle=%d\n", command->position, delta,
-           command->switches, current_pwm);
+          command->switches, current_pwm);
     last_position = command->position;
 }
 
@@ -319,7 +317,7 @@ int parse_byte(uint8_t byte)
     } message;
     static int wrong_message = 0;
     int ret = 0;
-    
+
     switch (state) {
         case STATE_START_BYTE:
             if (byte != PROTOCOL_START_BYTE)
