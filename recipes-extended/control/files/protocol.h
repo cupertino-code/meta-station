@@ -42,11 +42,11 @@ struct PACKED rotator_status {
 // Switches
 #define SWITCH_ANTENNA_NUM  0 // Antenna switch
 #define SWITCH_ENCODER_NUM  1 // Encoder switch
-#define SWITCH_GST_NUM      2 // Gst restart
+#define SWITCH_RECORD_NUM    2 // Start/Stop write switch
 
 #define SWITCH_ANTENNA  BIT(SWITCH_ANTENNA_NUM) // Antenna switch
 #define SWITCH_ENCODER  BIT(SWITCH_ENCODER_NUM) // Encoder switch
-#define SWITCH_GST      BIT(SWITCH_GST_NUM)     // Gst restart
+#define SWITCH_RECORD   BIT(SWITCH_RECORD_NUM)   // Start/Stop write switch
 #define SWITCH_NUM 3
 
 #undef offsetof
