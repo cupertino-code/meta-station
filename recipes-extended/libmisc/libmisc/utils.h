@@ -2,6 +2,7 @@
 #define _UTILS_H_INCLUDED
 
 #include <stdint.h>
+#include <time.h>
 
 extern int verbose;
 
@@ -11,11 +12,14 @@ uint8_t crc8_data(const uint8_t *data, uint8_t len);
 #define MAYBE_UNUSED    __attribute__((unused))
 #define PACKED __attribute__((packed))
 
-#ifndef CLOCK_MONOTONIC
-#define CLOCK_MONOTONIC 1
-#endif
-
 #define _unlikely(cond) __builtin_expect ((cond), 0)
 #define _likely(cond)   __builtin_expect ((cond), 1)
+inline uint64_t get_timestamp()
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
 
 #endif // _UTILS_H_INCLUDED
