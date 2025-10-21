@@ -38,10 +38,6 @@ process_func_t process_connection_func = NULL;
 #define DSCP_EF 0x2e // 46
 #define IPTOS_EF (DSCP_EF << 2)
 
-#ifndef CLOCK_MONOTONIC
-#define CLOCK_MONOTONIC 1
-#endif
-
 #define STATE_SOURCE    0
 #define STATE_LENGTH    1
 #define STATE_TYPE      2
@@ -206,13 +202,6 @@ void parser_init(struct parser_state *parser)
     parser->state = STATE_SOURCE;
     parser->length = 0;
     parser->expected_length = 0;
-}
-
-static inline uint64_t get_timestamp()
-{
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
 int parser(struct parser_state *parser, uint8_t byte)
