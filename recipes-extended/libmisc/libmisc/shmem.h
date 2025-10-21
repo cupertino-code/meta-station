@@ -8,6 +8,7 @@
 #include "crsf_protocol.h"
 
 struct shared_buffer {
+    uint32_t recording;         // Should be 4 bytes
     uint8_t flag;
     int aux;
     crsf_channels_t channels;
