@@ -76,6 +76,8 @@ directory:
     GPIO17, GPIO18 - Encoder
     GPIO23 - Encoder button
     GPIO25 - Power switch
+    GPIO22 - Writing led
+    GPIO24 - Write switch
 
   Antenna
     GPIO14 - TX
