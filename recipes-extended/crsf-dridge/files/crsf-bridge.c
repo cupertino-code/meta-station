@@ -211,7 +211,6 @@ void parser_init(struct parser_state *parser)
 static inline uint64_t get_timestamp()
 {
     struct timespec ts;
-
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
@@ -260,9 +259,8 @@ int parser(struct parser_state *parser, uint8_t byte)
             parser->state = STATE_PAYLOAD;
             break;
         case STATE_PAYLOAD:
-            if (!parser->payload_pos) {
+            if (!parser->payload_pos)
                 parser->payload = &parser->buffer[parser->length];
-            }
             parser->payload_pos++;
             parser->buffer[parser->length++] = byte;
             if (parser->payload_pos >= parser->payload_length) {
@@ -430,8 +428,7 @@ void process_connection(int uart_fd, int udp_sock, const char *ip_addr, uint16_t
 
     to.sin_family = AF_INET;
     to.sin_port = htons(udp_port);
-    if (inet_pton(AF_INET, ip_addr, &to.sin_addr) <= 0)
-    {
+    if (inet_pton(AF_INET, ip_addr, &to.sin_addr) <= 0) {
         perror("Invalid IP address");
         close(udp_sock);
         return;
@@ -446,16 +443,14 @@ void process_connection(int uart_fd, int udp_sock, const char *ip_addr, uint16_t
             perror("Error polling");
             break;
         }
-        
-        if (ret == 0) {
+
+        if (ret == 0)
             continue;
-        }
 
         if (fds[0].revents & POLLIN) {
             bytes_read = read(uart_fd, buffer, sizeof(buffer));
             if (bytes_read > 0) {
-                if (sendto(udp_sock, buffer, bytes_read, 0, (struct sockaddr *)&to, sizeof(to)) < 0)
-                {
+                if (sendto(udp_sock, buffer, bytes_read, 0, (struct sockaddr *)&to, sizeof(to)) < 0) {
                     perror("Error sending over UDP");
                     continue;
                 }
