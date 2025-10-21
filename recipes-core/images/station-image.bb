@@ -3,8 +3,9 @@ require image-common.inc
 
 SPECIFIC_TOOLS:append = " \
     station-control \
-    video-out \
+    stream-viewer \
     fontconfig \
+    rpi-gpio \
 "
 
 GSTREAMER:append = " \
