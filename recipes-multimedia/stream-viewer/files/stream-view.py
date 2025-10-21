@@ -13,17 +13,18 @@ import gi
 import sys
 import argparse
 import signal
-import threading
-import time
 import os
+import mmap
 import RPi.GPIO as GPIO
 from datetime import datetime
+import struct
 
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GObject, GLib
 PID_FILE_PATH = "/tmp/stream-viewer.pid"
 MOUNT_HELPER_PATH = "/sys/kernel/mount_helper/mount_point"
 LED_PIN = 22
+SHARED_NAME = "/dev/shm/channel_data"
 
 class GstElementError(Exception):
     def __init__(self, plugin):
@@ -44,6 +45,10 @@ class RTPStreamViewerCLI:
         self.record_elements = []
         self.main_loop = None
         self.bus_id = None
+        shm_fd = os.open(SHARED_NAME, os.O_RDWR)
+        self.shared_buffer = mmap.mmap(shm_fd, 2048)
+        os.close(shm_fd)
+        self.set_recording_flag(False)
 
         # Set up signal handlers
         signal.signal(signal.SIGUSR1, self.signal_handler)
@@ -51,6 +56,9 @@ class RTPStreamViewerCLI:
         signal.signal(signal.SIGTERM, self.signal_handler)
 
         self.setup_pipeline()
+
+    def set_recording_flag(self, flag):
+        self.shared_buffer[:4] = struct.pack('i', int(flag))
 
     def signal_handler(self, signum, frame):
         """Handle signals"""
@@ -217,6 +225,7 @@ class RTPStreamViewerCLI:
             element.sync_state_with_parent()
 
         self.is_recording = True
+        self.set_recording_flag(True)
         GPIO.output(LED_PIN, GPIO.HIGH)
         print(f"Started recording to: {filename}")
 
@@ -248,6 +257,7 @@ class RTPStreamViewerCLI:
         self.is_recording = False
         print("Recording stopped")
         ret = self.pipeline.set_state(Gst.State.READY)
+        self.set_recording_flag(False)
         if ret == Gst.StateChangeReturn.FAILURE:
             print("Unable to set pipeline to playing state")
             sys.exit(1)
@@ -294,6 +304,7 @@ class RTPStreamViewerCLI:
 
         if self.pipeline:
             self.pipeline.set_state(Gst.State.NULL)
+        self.shared_buffer.close()
 
 def main():
     parser = argparse.ArgumentParser(description='GStreamer RTP Stream Viewer with Recording (CLI)')
