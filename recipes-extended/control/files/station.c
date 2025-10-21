@@ -183,7 +183,6 @@ static void record_button_callback(struct gpio_data *data MAYBE_UNUSED,
 
 static void encoder_callback(struct gpio_data *data, int index, int edge)
 {
-    struct timespec ts;
     uint64_t timestamp;
     int curr_counter = 0;
 
@@ -208,8 +207,7 @@ static void encoder_callback(struct gpio_data *data, int index, int edge)
         }
         data->encoder.last_a = pins[PIN_A].state;
         data->encoder.last_b = pins[PIN_B].state;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        timestamp = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+        timestamp = get_timestamp();
         if (timestamp - data->encoder.prev_timestamp > 5) {
             data->encoder.counter += curr_counter;
             data->encoder.diff_counter += curr_counter;
@@ -222,7 +220,6 @@ static void encoder_callback(struct gpio_data *data, int index, int edge)
 
 static void button_callback(struct gpio_data *data, int index, int edge)
 {
-    struct timespec ts;
     uint64_t timestamp;
     static uint64_t prev_timestamp = 0;
     long pin_num = data->pins[index].pin_data->btn_num;
@@ -236,8 +233,7 @@ static void button_callback(struct gpio_data *data, int index, int edge)
         data->switch_status |= pin;
     }
     LOG2("Edge %s on  %ld\n", edge == RISING_EDGE? "RISING":"FALLING", pin);
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    timestamp = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+    timestamp = get_timestamp();
     if (timestamp - prev_timestamp < 5) {
         prev_timestamp = timestamp;
         LOG2("Button pin %d ignored due to debounce.\n", pins[index].gpio);
@@ -250,12 +246,10 @@ static void button_callback(struct gpio_data *data, int index, int edge)
 
 int check_switch(struct gpio_data *data, int sw_index)
 {
-    struct timespec ts;
     uint32_t timestamp;
     uint8_t pin_index = data->sw_index[sw_index];
 
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    timestamp = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+    timestamp = get_timestamp();
     if (timestamp - data->sw_timestamp[sw_index] < 5) {
         LOG2("Switch %d ignored due to debounce.\n", sw_index);
         return 0;
@@ -273,8 +267,6 @@ int check_switch(struct gpio_data *data, int sw_index)
 static void signal_handler(int MAYBE_UNUSED sig)
 {
     if (sig == SIGALRM) {
-        struct timespec ts;
-        uint64_t timestamp;
         struct gpio_v2_line_values values;
 
         values.mask = 1;
@@ -374,7 +366,6 @@ static void send_message(struct gpio_data *data)
     struct rotator_protocol *msg = (struct rotator_protocol *)buffer;
     struct rotator_command *command = (struct rotator_command *)&msg->payload;
     uint8_t *crc = buffer + sizeof(struct rotator_protocol) + sizeof(struct rotator_command);
-    struct timespec ts;
 
     if (!antenna_status.connect_status)
         return;
@@ -382,8 +373,7 @@ static void send_message(struct gpio_data *data)
     msg->version = PROTOCOL_VERSION;
     msg->type = MESSAGE_TYPE_COMMAND;
     msg->length = sizeof(struct rotator_command);
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    msg->timestamp = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+    msg->timestamp = get_timestamp();
     command->position = data->encoder.counter;
     command->switches = data->switch_status;
 
@@ -571,11 +561,9 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
                 }
                 if (ret == 0) {
                     if (status_timestamp) {
-                        struct timespec ts;
                         uint64_t timestamp;
 
-                        clock_gettime(CLOCK_MONOTONIC, &ts);
-                        timestamp = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+                        timestamp = get_timestamp();
                         if (timestamp - status_timestamp > STATUS_TIMEOUT) {
                             antenna_status.connect_status = 0;
                             printf("Status timeout\n");
@@ -600,10 +588,7 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
                     if (bytes_read > 0) {
                         for (ssize_t i = 0; i < bytes_read; i++) {
                             if (parse_byte(buffer[i])) {
-                                struct timespec ts;
-
-                                clock_gettime(CLOCK_MONOTONIC, &ts);
-                                status_timestamp = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+                                status_timestamp = get_timestamp();
                             }
                         }
                         LOG2("Received %d bytes from antenna\n", (int)bytes_read);

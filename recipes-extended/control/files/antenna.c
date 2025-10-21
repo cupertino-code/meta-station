@@ -231,14 +231,12 @@ static void send_status(int fd)
     struct rotator_protocol *msg = (struct rotator_protocol *)buffer;
     struct rotator_status *status = (struct rotator_status *)&msg->payload;
     uint8_t *crc = buffer + sizeof(struct rotator_protocol) + sizeof(struct rotator_status);
-    struct timespec ts;
 
     msg->start_byte = PROTOCOL_START_BYTE;
     msg->version = PROTOCOL_VERSION;
     msg->type = MESSAGE_TYPE_STATUS;
     msg->length = sizeof(struct rotator_status);
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    msg->timestamp = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+    msg->timestamp = get_timestamp();
     status->angle = ANGLE_MIN + (current_pwm - PWM_DUTY_CYCLE_MIN) /
                     ((PWM_DUTY_CYCLE_MAX - PWM_DUTY_CYCLE_MIN) / (ANGLE_MAX - ANGLE_MIN));
     status->status = master_sw.power_status;
