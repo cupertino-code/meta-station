@@ -275,7 +275,9 @@ class RTPStreamViewerCLI:
         elif t == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
             print(f"Error: {err}, {debug}")
-            self.main_loop.quit()
+            source_name = message.src.get_name() if message.src else "unknown"
+            if source_name == 'file-sink':
+                self.stop_recording()
 
     def run(self):
         """Start the application"""
