@@ -34,6 +34,7 @@ static void *thread(void *arg MAYBE_UNUSED)
     uint8_t* temp_fbp = NULL;
     cairo_t* temp_cr;
     cairo_surface_t *temp_surface;
+    uint64_t timestamp = 0;
 
     // open the frame buffer file for reading & writing
     fbfd = open ( "/dev/fb0", O_RDWR );
@@ -88,6 +89,7 @@ static void *thread(void *arg MAYBE_UNUSED)
         cairo_text_extents_t te;
         int temp_angle;
         int temp_power;
+        double circle_radius;
 
         temp_angle = antenna_status.angle;
         temp_power = antenna_status.power_status;
@@ -97,7 +99,6 @@ static void *thread(void *arg MAYBE_UNUSED)
         cairo_set_source_rgb (temp_cr, 0.5, 0.5, 0.5);
         cairo_set_line_width (temp_cr, 1);
         for (int angle = -120; angle <= 120; angle += 10) {
-            
             rad = (double)angle * M_PI / 180.0;
             sn = sin(rad);
             cs = cos(rad);
@@ -134,6 +135,7 @@ static void *thread(void *arg MAYBE_UNUSED)
         cairo_move_to (temp_cr, x - te.x_bearing, y - te.y_bearing);
         cairo_show_text (temp_cr, buf);
         y += te.height + 10;
+        circle_radius = te.height / 2;
         sprintf(buf, "%s", antenna_status.updated ? (temp_power ? "Powered" : "POWER OFF") : "UNKNOWN");
         if (temp_power || !antenna_status.updated)
             cairo_set_source_rgb (temp_cr, 1, 1, 1);
@@ -189,6 +191,20 @@ static void *thread(void *arg MAYBE_UNUSED)
                         cairo_show_text(temp_cr, buf);
                     }
                 }
+            }
+            if (shbuf->recording) {
+                uint64_t now = get_timestamp();
+                if (!timestamp)
+                    timestamp = now;
+                if (now - timestamp <= 500) {
+                    cairo_set_source_rgb(temp_cr, 1.0, 0.0, 0.0);
+                    cairo_arc(temp_cr, circle_radius, circle_radius, circle_radius, 0, 2 * M_PI);
+                    cairo_fill(temp_cr);
+                } else if (now - timestamp >= 1000) {
+                    timestamp = 0;
+                }
+            } else {
+                timestamp = 0;
             }
         }
         cairo_set_source_surface(cr, temp_surface, 0, 0);
