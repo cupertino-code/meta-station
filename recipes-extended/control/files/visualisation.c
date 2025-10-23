@@ -7,10 +7,13 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <cairo/cairo.h>
+#include <string.h>
 #include <math.h>
 #include <pthread.h>
 
 #include "visualisation.h"
+#include "protocol.h"
+#include "station.h"
 #include "common.h"
 #include "utils.h"
 #include "config.h"
@@ -89,10 +92,12 @@ static void *thread(void *arg MAYBE_UNUSED)
         cairo_text_extents_t te;
         int temp_angle;
         int temp_power;
+        int temp_lp;
         double circle_radius;
 
         temp_angle = antenna_status.angle;
-        temp_power = antenna_status.power_status;
+        temp_power = CHECK_BIT(antenna_status.power_status, POWER_BIT);
+        temp_lp = CHECK_BIT(antenna_status.power_status, LOW_POWER_BIT);
         cairo_set_source_rgb (temp_cr, 0, 0, 0);
         cairo_rectangle (temp_cr, 0, 0, 280, 280);
         cairo_fill (temp_cr);
@@ -146,6 +151,14 @@ static void *thread(void *arg MAYBE_UNUSED)
         cairo_move_to (temp_cr, 20 - te.x_bearing, y - te.y_bearing);
         cairo_show_text (temp_cr, buf);
         y += te.height + 10;
+        if (antenna_status.connect_status && antenna_status.updated && temp_lp) {
+            strcpy(buf, "LOW POWER");
+            cairo_set_source_rgb (temp_cr, 0.9, 0, 0);
+            cairo_text_extents (temp_cr, buf, &te);
+            cairo_move_to (temp_cr, 20 - te.x_bearing, y - te.y_bearing);
+            cairo_show_text (temp_cr, buf);
+            y += te.height + 10;
+        }
         if (!antenna_status.connect_status) {
             cairo_set_source_rgb (temp_cr, 0.9, 0, 0);
             sprintf(buf, "NO CONNECTION");

@@ -15,6 +15,7 @@
 #include <string.h>
 #include <signal.h>
 #include <sys/time.h>
+#include <time.h>
 #include <getopt.h>
 #include "protocol.h"
 #include "common.h"
@@ -36,6 +37,7 @@
 #define GPIO_CHIP_NAME "gpiochip0"
 #define GPIO_CHIP_PATH "/dev/"GPIO_CHIP_NAME
 #define GPIO_MASTER_SW 25
+#define GPIO_LOW_POWER 16
 
 #define TIMER_PWM   0
 #define TIMER_POWER 1
@@ -49,10 +51,12 @@
 static int current_pwm = PWM_CENTER;
 static int stored_pwm = 0;
 
-struct switch_status {
-    struct gpiod_line *line;
+struct antenna_status {
+    struct gpiod_line *power_line;
+    struct gpiod_line *lp_line;
     int sw_status;
-    int power_status;
+    uint16_t power_status;
+    uint16_t vbat;
     int angle_cnt;
     int power_cnt;
 };
@@ -60,7 +64,7 @@ struct switch_status {
 #define SOURCE_PWM      0
 #define SOURCE_SWITCH   1
 
-static struct switch_status master_sw;
+static struct antenna_status antenna_status;
 
 static void help()
 {
@@ -144,10 +148,10 @@ static void set_timer(int which)
 {
     switch (which) {
     case TIMER_PWM:
-        master_sw.angle_cnt = 10;
+        antenna_status.angle_cnt = 10;
         break;
     case TIMER_POWER:
-        master_sw.power_cnt = 1;
+        antenna_status.power_cnt = 1;
         break;
     default:
         return;
@@ -177,8 +181,11 @@ static void set_power(void)
 {
     FILE *fp;
 
-    gpiod_line_set_value(master_sw.line, master_sw.sw_status);
-    master_sw.power_status = master_sw.sw_status;
+    gpiod_line_set_value(antenna_status.power_line, antenna_status.sw_status);
+    if (antenna_status.sw_status)
+        SET_BIT(antenna_status.power_status, POWER_BIT);
+    else
+        CLEAR_BIT(antenna_status.power_status, POWER_BIT);
     fp = fopen(PID_FILE, "r");
     if (fp) {
         char buf[11];
@@ -188,18 +195,34 @@ static void set_power(void)
         if (fread(buf, 1, sizeof(buf)-1, fp)) {
             pid = atoi(buf);
             if (pid) {
-                kill(pid, master_sw.power_status? SIGUSR1 : SIGUSR2);
+                kill(pid, CHECK_BIT(antenna_status.power_status, POWER_BIT) ? SIGUSR1 : SIGUSR2);
             }
         }
         fclose(fp);
     }
 }
 
-static void set_switch(struct switch_status *sw)
+static void update_low_power(struct antenna_status *status)
 {
-    if (master_sw.sw_status) {
+    int value = gpiod_line_get_value(status->lp_line);
+    if (value >= 0) {
+        if (value)
+            CLEAR_BIT(status->power_status, LOW_POWER_BIT);
+        else
+            SET_BIT(status->power_status, LOW_POWER_BIT);
+    } else {
+        perror("gpiod_line_get_value failed");
+    }
+}
+
+static void set_switch(struct antenna_status *status)
+{
+    if (status->sw_status) {
         set_power();
-        sw->power_status = sw->sw_status;
+        if (status->sw_status)
+            SET_BIT(status->power_status, LOW_POWER_BIT);
+        else
+            CLEAR_BIT(status->power_status, LOW_POWER_BIT);
     } else {
         set_timer(TIMER_POWER);
     }
@@ -207,10 +230,10 @@ static void set_switch(struct switch_status *sw)
 
 void signal_handler(int MAYBE_UNUSED sig)
 {
-    if (master_sw.angle_cnt) {
-        master_sw.angle_cnt--;
-        if (!master_sw.angle_cnt) {
-            LOG2("SIGALARM %d %d\n", current_pwm, master_sw.sw_status);
+    if (antenna_status.angle_cnt) {
+        antenna_status.angle_cnt--;
+        if (!antenna_status.angle_cnt) {
+            LOG2("SIGALARM %d %d\n", current_pwm, antenna_status.sw_status);
             if (stored_pwm != current_pwm) {
                 LOG1("Store pwm value %d.\n", current_pwm);
                 nv_set_pwm(current_pwm);
@@ -219,13 +242,13 @@ void signal_handler(int MAYBE_UNUSED sig)
             _set_timer_internal();
         }
     }
-    if (master_sw.power_cnt) {
-        master_sw.power_cnt--;
+    if (antenna_status.power_cnt) {
+        antenna_status.power_cnt--;
         set_power();
     }
 }
 
-static void send_status(int fd)
+static int send_status(int fd)
 {
     uint8_t buffer[sizeof(struct rotator_protocol) + sizeof(struct rotator_status) + 1];
     struct rotator_protocol *msg = (struct rotator_protocol *)buffer;
@@ -239,7 +262,8 @@ static void send_status(int fd)
     msg->timestamp = get_timestamp();
     status->angle = ANGLE_MIN + (current_pwm - PWM_DUTY_CYCLE_MIN) /
                     ((PWM_DUTY_CYCLE_MAX - PWM_DUTY_CYCLE_MIN) / (ANGLE_MAX - ANGLE_MIN));
-    status->status = master_sw.power_status;
+    update_low_power(&antenna_status);
+    status->status = antenna_status.power_status;
     status->vbat = 0;
 
     *crc = crc8_data(&buffer[offsetof(struct rotator_protocol, timestamp)],
@@ -251,8 +275,11 @@ static void send_status(int fd)
         write(fd, buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_status) + 1);
     LOG2("Sent %d bytes message: length=%d, CRC=0x%x\n", (int)bytes_written, msg->length, *crc);
     dump(NULL, buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_status) + 1);
-    if (bytes_written < 0)
-        perror("Error writing to pipe");
+    if (bytes_written < 0) {
+        perror("Status send error");
+        return -1;
+    }
+    return 0;
 }
 
 void process_command(struct rotator_command *command)
@@ -270,9 +297,9 @@ void process_command(struct rotator_command *command)
         first = 0;
         last_position = command->position;
         set_pwm(current_pwm);
-        master_sw.sw_status = m_sw_status;
+        antenna_status.sw_status = m_sw_status;
         LOG2("First switch\n");
-        set_switch(&master_sw);
+        set_switch(&antenna_status);
     }
     if (delta) {
         if (current_pwm < PWM_DUTY_CYCLE_MIN) {
@@ -282,10 +309,10 @@ void process_command(struct rotator_command *command)
         }
         set_pwm(current_pwm);
     }
-    if (master_sw.sw_status != m_sw_status) {
-        master_sw.sw_status = m_sw_status;
+    if (antenna_status.sw_status != m_sw_status) {
+        antenna_status.sw_status = m_sw_status;
         LOG2("Set switch\n");
-        set_switch(&master_sw);
+        set_switch(&antenna_status);
     }
     LOG1("position=%d(delta %d), switches=%d duty_cycle=%d\n", command->position, delta,
           command->switches, current_pwm);
@@ -446,23 +473,37 @@ void prepare_pwm()
     }
 }
 
-void process_connection(int tcp_sock)
+// Here is dirty hack. original struct gpiod_line_event is 12 bytes long ant
+// event_type field has offset 10. But gpiod_line_event_read function fills
+// 20 bytes
+struct fake_gpiod_line_event {
+    uint64_t sec;
+    int32_t usec;
+    uint32_t reserved;
+    int event_type;
+};
+
+void process_connection(int tcp_sock, struct gpiod_line *gpio_line)
 {
     uint8_t buffer[BUFFER_SIZE];
     ssize_t bytes_read;
 
-
     struct pollfd fds[2];
     fds[0].fd = tcp_sock;
     fds[0].events = POLLIN;
-    fds[1].fd = tcp_sock;
+    int fd = gpiod_line_event_get_fd(gpio_line);
+    if (fd < 0) {
+        perror("gpiod_line_event_get_fd failed");
+        return;
+    }
+    fds[1].fd = fd;
     fds[1].events = POLLIN;
 
     LOG1("Waiting for data...\n");
     while (1) {
         int status_sent = 0;
 
-        int ret = poll(fds, 1, 1000);
+        int ret = poll(fds, 2, 1000);
         if (ret < 0) {
             perror("Error polling");
             if (errno == EINTR) {
@@ -476,7 +517,8 @@ void process_connection(int tcp_sock)
             if (bytes_read > 0) {
                 for (ssize_t i = 0; i < bytes_read; i++) {
                     if (parse_byte(buffer[i])) {
-                        send_status(tcp_sock);
+                        if (send_status(tcp_sock) < 0)
+                            break;
                         status_sent = 1;
                     }
                 }
@@ -486,8 +528,18 @@ void process_connection(int tcp_sock)
                 break;
             }
         }
+        if (fds[1].revents & POLLIN) {
+            struct fake_gpiod_line_event event;
+
+            if (gpiod_line_event_read(gpio_line, (struct gpiod_line_event *)&event) < 0) {
+                perror("gpiod_line_event_read failed");
+                continue;
+            }
+            update_low_power(&antenna_status);
+        }
         if (!status_sent) {
-            send_status(tcp_sock);
+            if (send_status(tcp_sock) < 0)
+                break;
             status_sent = 1;
         }
     }
@@ -495,7 +547,7 @@ void process_connection(int tcp_sock)
     close(tcp_sock);
 }
 
-int start_client(char *server_ip, uint16_t tcp_port)
+int start_client(char *server_ip, uint16_t tcp_port, struct gpiod_line *line)
 {
     struct sockaddr_in server_addr;
     int tcp_sock;
@@ -519,15 +571,13 @@ int start_client(char *server_ip, uint16_t tcp_port)
             continue;
         }
         printf("Connected to server %s:%d\n", server_ip, tcp_port);
-        process_connection(tcp_sock);
-        close(tcp_sock);
+        process_connection(tcp_sock, line);
     }
     printf("Client stopped\n");
 }
 
 int main(int argc, char *argv[])
 {
-    int file_descriptor;
     uint16_t tcp_port = DEFAULT_PORT;
     int opt, long_index;
 
@@ -566,11 +616,6 @@ int main(int argc, char *argv[])
         help();
         return 1;
     }
-    file_descriptor = open(GPIO_CHIP_PATH, O_RDONLY);
-    if (file_descriptor < 0) {
-        perror("Failed opening GPIO chip.\n");
-        return 1;
-    }
 
     char *server_ip = argv[optind];
     signal(SIGALRM, signal_handler);
@@ -592,21 +637,47 @@ int main(int argc, char *argv[])
         gpiod_chip_close(chip);
         return 1;
     }
-    master_sw.line = line;
-    master_sw.sw_status = 0;
-    master_sw.power_status = 0;
+    antenna_status.power_line = line;
+    antenna_status.lp_line = NULL;
+    antenna_status.sw_status = 0;
+    antenna_status.power_status = 0;
     ret = gpiod_line_request_output(line, "master_switch", 0);
     if (ret < 0) {
         perror("Failed to set line as output");
-        gpiod_line_release(line);
-        gpiod_chip_close(chip);
-        return 1;
+        goto out;
     }
-    if (start_client(server_ip, tcp_port) < 0) {
-        fprintf(stderr, "Failed to start client\n");
-        return 1;
+    line = gpiod_chip_get_line(chip, GPIO_LOW_POWER);
+    if (!line) {
+        perror("Get line failed");
+        line = NULL;
+        goto out;
     }
+    antenna_status.lp_line = line;
+    ret = gpiod_line_request_both_edges_events(antenna_status.lp_line, CONSUMER);
+    if (ret < 0) {
+        perror("gpiod_line_request_events failed");
+        goto out;
+    }
+    ret = gpiod_line_get_value(antenna_status.lp_line);
+    if (ret >= 0) {
+        if (ret)
+            CLEAR_BIT(antenna_status.power_status, LOW_POWER_BIT);
+        else
+            SET_BIT(antenna_status.power_status, LOW_POWER_BIT);
+    } else {
+        perror("gpiod_line_get_value failed");
+    }
+    ret = 0;
+    if (start_client(server_ip, tcp_port, antenna_status.lp_line) < 0) {
+        perror("Failed to start client");
+        ret = 1;
+    }
+out:
+    if (antenna_status.power_line && antenna_status.power_line != line)
+        gpiod_line_release(antenna_status.power_line);
+    if (antenna_status.lp_line && antenna_status.lp_line != line)
+        gpiod_line_release(antenna_status.lp_line);
+    gpiod_chip_close(chip);
 
-    close(file_descriptor);
-    return 0;
+    return ret;
 }
