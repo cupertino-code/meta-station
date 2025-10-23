@@ -14,16 +14,9 @@ extern int verbose;
 #define BIT(n) (1U << (n))
 #endif
 
-struct antenna_status {
-    int updated;
-    int angle;
-    int power_status;
-    int connect_status;
-    int vbat;
-    struct shared_memory shm;
-};
-
-extern struct antenna_status antenna_status;
+#define SET_BIT(var, n)   ((var) |= BIT(n))
+#define CLEAR_BIT(var, n) ((var) &= ~BIT(n))
+#define CHECK_BIT(var, n) ((var) & BIT(n))
 
 #define LOG1(format, ...) do {              \
         if (verbose)                        \

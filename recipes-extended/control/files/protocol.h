@@ -21,6 +21,10 @@ struct PACKED rotator_command {
     int32_t switches;       // Switch status on the station
 };
 
+// Status bits
+#define POWER_BIT       0
+#define LOW_POWER_BIT   1
+
 struct PACKED rotator_status {
     int16_t angle;          // Current angle of the antenna
     uint8_t status;         // Status flags (e.g., error states)

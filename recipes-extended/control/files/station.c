@@ -19,6 +19,7 @@
 
 #include "protocol.h"
 #include "visualisation.h"
+#include "station.h"
 #include "common.h"
 #include "config.h"
 #include "utils.h"
@@ -246,14 +247,14 @@ static void button_callback(struct gpio_data *data, int index, int edge)
 
 int check_switch(struct gpio_data *data, int sw_index)
 {
-    uint32_t timestamp;
+//    uint32_t timestamp;
     uint8_t pin_index = data->sw_index[sw_index];
 
-    timestamp = get_timestamp();
-    if (timestamp - data->sw_timestamp[sw_index] < 5) {
-        LOG2("Switch %d ignored due to debounce.\n", sw_index);
-        return 0;
-    }
+//    timestamp = get_timestamp();
+//    if (timestamp - data->sw_timestamp[sw_index] < 5) {
+//        LOG2("Switch %d ignored due to debounce.\n", sw_index);
+//        return 0;
+//    }
     data->sw_change &= ~BIT(sw_index);
     if (data->pins[pin_index].state) {
         LOG1("Button pin %d released.\n", data->pins[pin_index].gpio);

@@ -10,9 +10,9 @@ all: station antenna
 
 station: station.o visualisation.o config.o
 
-station.o: station.c protocol.h common.h
+station.o: station.c protocol.h common.h station.h
 
-visualisation.o: visualisation.c visualisation.h
+visualisation.o: visualisation.c visualisation.h station.h
 
 config.o: config.cpp
 
@@ -21,4 +21,4 @@ antenna: antenna.o
 antenna.o: antenna.c protocol.h common.h
 
 clean:
-	-rm -f station antenna station.o utils.o antenna.o visualisation.o
+	-rm -f station antenna station.o utils.o config.o antenna.o visualisation.o
