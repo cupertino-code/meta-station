@@ -84,3 +84,4 @@ directory:
     GPIO15 - RX
     GPIO25 - Power
     GPIO18 - Servo
+    GPIO16 - Low Power
