@@ -1,6 +1,6 @@
 SRC_INSTALL_PATH = "${prefix}/src/control"
 
-SRCS = "Makefile common.h  config.cpp  config.h  protocol.h  station.c  visualisation.c  visualisation.h"
+SRCS = "Makefile common.h  config.cpp  config.h  protocol.h  station.c station.h visualisation.c  visualisation.h"
 
 do_install:append() {
     install -d ${D}${SRC_INSTALL_PATH}
