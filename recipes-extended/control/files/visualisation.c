@@ -38,6 +38,7 @@ static void *thread(void *arg MAYBE_UNUSED)
     cairo_t* temp_cr;
     cairo_surface_t *temp_surface;
     uint64_t timestamp = 0;
+    static uint64_t last_flag_timestamp = 0;
 
     // open the frame buffer file for reading & writing
     fbfd = open ( "/dev/fb0", O_RDWR );
@@ -180,8 +181,18 @@ static void *thread(void *arg MAYBE_UNUSED)
             struct shared_buffer *shbuf = (struct shared_buffer *)antenna_status.shm.ptr;
             struct channel_data data[CHANNELS_CNT];
             unsigned int size = CHANNELS_CNT;
+            int show_vrx;
 
+            show_vrx = 0;
             if (shbuf->flag) {
+                shbuf->flag = 0;
+                last_flag_timestamp = get_timestamp();
+                show_vrx = 1;
+            } else {
+                if (last_flag_timestamp && (get_timestamp() - last_flag_timestamp <= 3000))
+                    show_vrx = 1;
+            }
+            if (show_vrx) {
                 if (get_chan_info(&shbuf->channels, data, &size)) {
                     cairo_set_font_size (temp_cr, 16);
                     for (unsigned int i=0; i < size; i++) {
