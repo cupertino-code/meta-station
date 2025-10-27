@@ -3,6 +3,7 @@ require control-common.inc
 SRC_URI += " \
     file://stationctrl.in \
     file://station.c \
+    file://station.h \
     file://config.cpp \
     file://config.h \
     file://visualisation.c \
