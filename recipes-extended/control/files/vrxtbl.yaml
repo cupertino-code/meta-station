@@ -2,6 +2,10 @@ vrx_switch:
   channel: 13
   pwm: [1400, 1600, 2100]
 
+tx_switch:
+  channel: 14
+  pwm: [1400, 1600, 2100]
+
 vrx_table:
   - id: 0
     name : "5.8"
