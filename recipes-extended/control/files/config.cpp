@@ -18,6 +18,9 @@ Config parse_yaml(const std::string &filepath)
         cfg.vrx_switch.channel = config_root["vrx_switch"]["channel"].as<int>();
         cfg.vrx_switch.pwm = config_root["vrx_switch"]["pwm"].as<std::vector<int>>();
 
+        cfg.tx_switch.channel = config_root["tx_switch"]["channel"].as<int>();
+        cfg.tx_switch.pwm = config_root["tx_switch"]["pwm"].as<std::vector<int>>();
+
         for (const auto &node : config_root["vrx_table"]) {
             cfg.vrx_table.push_back(node.as<VrxBand>());
         }
@@ -133,6 +136,13 @@ int get_chan_info(crsf_channels_t *crsf, struct channel_data *data, unsigned int
     for (unsigned int i = 0; i < config.vrx_switch.pwm.size(); i++)
         if (usval < config.vrx_switch.pwm[i]) {
             active = i;
+            break;
+        }
+    data->tx_selected = 0;
+    usval = get_channel_us(crsf, config.tx_switch.channel - 1);
+    for (unsigned int i = 0; i < config.tx_switch.pwm.size(); i++)
+        if (usval < config.tx_switch.pwm[i]) {
+            data->tx_selected = i;
             break;
         }
     for (unsigned int i = 0; i < config.vrx_table.size(); i++, cnt++) {

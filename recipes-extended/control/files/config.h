@@ -25,7 +25,7 @@ struct VrxBand {
     std::vector<int> pwm;
 };
 
-struct VrxSwitch {
+struct Switch {
     int channel;
     std::vector<int> pwm;
 };
@@ -36,7 +36,8 @@ struct PowerSetting {
 };
 
 struct Config {
-    VrxSwitch vrx_switch;
+    Switch vrx_switch;
+    Switch tx_switch;
     std::vector<VrxBand> vrx_table;
     std::vector<VtxBand> vtx_table_58;
     std::vector<PowerSetting> power_table;
@@ -87,9 +88,9 @@ namespace YAML
     };
 
     template <>
-    struct convert<VrxSwitch>
+    struct convert<Switch>
     {
-        static bool decode(const Node &node, VrxSwitch &sw)
+        static bool decode(const Node &node, Switch &sw)
         {
             sw.channel = node["channel"].as<int>();
             sw.pwm = node["pwm"].as<std::vector<int>>();
@@ -109,6 +110,7 @@ struct channel_data {
     uint16_t freq;
     char band_name[BAND_NAME_LEN];
     int selected;
+    int tx_selected;
 };
 
 int load_config(const char *conf_name);
