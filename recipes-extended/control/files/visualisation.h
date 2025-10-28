@@ -8,7 +8,7 @@
 #define X_OFFSET    20.0
 #define Y_OFFSET    100.0
 #define AREA_WIDTH  152
-#define AREA_HEIGHT 280
+#define AREA_HEIGHT 500
 
 #ifndef M_PI
 #define M_PI        3.14159265358979323846
