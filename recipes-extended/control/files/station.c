@@ -143,6 +143,11 @@ static volatile int run = 0;
 static uint64_t status_timestamp = 0;
 
 struct antenna_status antenna_status;
+struct sockets {
+    int server_sock;
+    int client_sock;
+};
+static struct sockets sockets;
 
 #define NUM_PINS (sizeof(pins) / sizeof(pins[0]))
 
@@ -180,6 +185,14 @@ static void record_button_callback(struct gpio_data *data MAYBE_UNUSED,
                                    int index MAYBE_UNUSED, int edge MAYBE_UNUSED)
 {
     _set_timer_internal(30);
+}
+
+static inline void close_fd(int *fd)
+{
+    if (fd && *fd >= 0) {
+        close(*fd);
+        *fd = -1;
+    }
 }
 
 static void encoder_callback(struct gpio_data *data, int index, int edge)
@@ -291,6 +304,10 @@ static void signal_handler(int MAYBE_UNUSED sig)
                 fclose(fp);
             }
         }
+    } else if (sig == SIGINT || sig == SIGTERM) {
+        run = 0;
+        close_fd(&sockets.server_sock);
+        close_fd(&sockets.client_sock);
     }
 }
 
@@ -355,8 +372,8 @@ void *reader(void *arg)
             }
         }
     }
-    for (i = 0; i < NUM_PINS; i++) 
-        close(poll_descriptors[i].fd);
+    for (i = 0; i < NUM_PINS; i++)
+        close_fd(&poll_descriptors[i].fd);
 
     return 0;
 }
@@ -505,12 +522,11 @@ int parse_byte(uint8_t byte)
 
 int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
 {
-    int server_sock, client_sock;
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof(client_addr);
 
-    server_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_sock < 0) {
+    sockets.server_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockets.server_sock < 0) {
         perror("Socket creation error");
         return -1;
     }
@@ -520,37 +536,37 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(tcp_port);
 
-    if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+    if (bind(sockets.server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("Binding socket error");
-        close(server_sock);
+        close_fd(&sockets.server_sock);
         return -1;
     }
 
-    if (listen(server_sock, 5) < 0) {
+    if (listen(sockets.server_sock, 5) < 0) {
         perror("Listen error");
-        close(server_sock);
+        close_fd(&sockets.server_sock);
         return -1;
     }
 
     printf("TCP server started on port %d\n", tcp_port);
 
-    while (1) {
-        client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &addr_len);
-        if (client_sock < 0) {
+    while (run) {
+        sockets.client_sock = accept(sockets.server_sock, (struct sockaddr *)&client_addr, &addr_len);
+        if (sockets.client_sock < 0) {
             perror("Error accepting connection");
             continue;
         }
         printf("Client connected\n");
         antenna_status.connect_status = 1;
         send_message(data);
-        while (antenna_status.connect_status) {
+        while (run && antenna_status.connect_status) {
             uint8_t buffer[BUFFER_SIZE];
             ssize_t bytes_read;
 
             struct pollfd fds[2];
             fds[0].fd = fd_recv;
             fds[0].events = POLLIN;
-            fds[1].fd = client_sock;
+            fds[1].fd = sockets.client_sock;
             fds[1].events = POLLIN;
 
             LOG1("Waiting for data...\n");
@@ -576,7 +592,7 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
                 if (fds[0].revents & POLLIN) {
                     bytes_read = read(fd_recv, buffer, sizeof(buffer));
                     if (bytes_read > 0) {
-                        if (write(client_sock, buffer, bytes_read) < 0) {
+                        if (write(sockets.client_sock, buffer, bytes_read) < 0) {
                             perror("Error sending over TCP");
                             break;
                         }
@@ -585,7 +601,7 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
                 }
 
                 if (fds[1].revents & POLLIN) {
-                    bytes_read = read(client_sock, buffer, sizeof(buffer));
+                    bytes_read = read(sockets.client_sock, buffer, sizeof(buffer));
                     if (bytes_read > 0) {
                         for (ssize_t i = 0; i < bytes_read; i++) {
                             if (parse_byte(buffer[i])) {
@@ -604,11 +620,11 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
         }
         antenna_status.connect_status = 0;
 
-        close(client_sock);
+        close_fd(&sockets.client_sock);
         printf("Client disconnected\n");
     }
 
-    close(server_sock);
+    close_fd(&sockets.server_sock);
     printf("Server stopped\n");
     return 0;
 }
@@ -701,7 +717,11 @@ int main(int argc, char *argv[])
     memset(&antenna_status, 0, sizeof(antenna_status));
     pthread_t reader_thread;
     run = 1;
+    sockets.server_sock = -1;
+    sockets.client_sock = -1;
     signal(SIGALRM, signal_handler);
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
     load_config(CONFIG_FILE);
     pthread_create(&reader_thread, NULL, &reader, (void *)&data);
     init_shared(DEFAULT_SHARED_NAME, &antenna_status.shm);
@@ -709,5 +729,6 @@ int main(int argc, char *argv[])
     if (start_server(tcp_port, pipe_fds[0], &data) != 0)
         run = 0;
     pthread_join(reader_thread, NULL);
+    visualisation_stop();
     return 0;
 }
