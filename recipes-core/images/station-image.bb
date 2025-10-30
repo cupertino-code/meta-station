@@ -1,6 +1,10 @@
 # Image for station side
 require image-common.inc
 
+EXTRA_TOOLS += " \
+    exfat-utils fuse-exfat \
+"
+
 SPECIFIC_TOOLS:append = " \
     station-control \
     stream-viewer \
