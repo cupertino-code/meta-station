@@ -50,8 +50,7 @@ common_data:
   # Conf options for domain that use linux
   linux_domain_conf: &LINUX_DOMAIN_CONF
     - [SSTATE_DIR, "${TOPDIR}/../common_data/sstate"]
-#    - [DL_DIR, "${TOPDIR}/../common_data/downloads"]
-    - [DL_DIR, "${TOPDIR}/../../../bbb/build/downloads"]
+    - [DL_DIR, "${TOPDIR}/../common_data/downloads"]
     # Init manager
     - [INIT_MANAGER, "systemd"]
     # Remove features that we are not used
@@ -74,8 +73,10 @@ common_data:
         broadcom/bcm2710-rpi-zero-2-w.dtb broadcom/bcm2710-rpi-zero-2.dtb"]
     - ["PREFERRED_VERSION_libgpiod", "1.6.%"]
     - [RPI_KERNEL_DEVICETREE:remove,
-        "broadcom/bcm2708-rpi-b.dtb broadcom/bcm2708-rpi-zero-w.dtb
-         broadcom/bcm2708-rpi-b-plus.dtb broadcom/bcm2708-rpi-zero.dtb
+        "broadcom/bcm2708-rpi-b.dtb broadcom/bcm2708-rpi-b-rev1.dtb
+         broadcom/bcm2708-rpi-b-plus.dtb
+         broadcom/bcm2708-rpi-zero.dtb broadcom/bcm2708-rpi-zero-w.dtb
+         broadcom/bcm2709-rpi-2-b.dtb broadcom/bcm2710-rpi-2-b.dtb
          broadcom/bcm2710-rpi-3-b.dtb broadcom/bcm2710-rpi-3-b-plus.dtb
          broadcom/bcm2837-rpi-3-b.dtb broadcom/bcm2710-rpi-cm3.dtb
          broadcom/bcm2711-rpi-400.dtb broadcom/bcm2711-rpi-cm4.dtb
@@ -84,6 +85,8 @@ common_data:
          broadcom/bcm2712-rpi-cm5l-cm4io.dtb"]
     - [IMAGE_ROOTFS_EXTRA_SPACE, "2097152"]
     - [IMAGE_OVERHEAD_FACTOR, "2.0"]
+    - [PREFERRED_PROVIDER_virtual/pkgconfig-native, "pkgconf-native"]
+#    - [EXTRA_IMAGE_FEATURES:remove, "debug-tweaks"]
 components:
   antenna:
     build-dir: "%{YOCTOS_WORK_DIR}"
@@ -104,7 +107,7 @@ components:
         - [SDTV_ASPECT, "2"]
         - [RPI_KERNEL_DEVICETREE_OVERLAYS:append, "  overlays/adv7282m.dtbo overlays/pwm-2chan.dtbo overlays/pwm.dtbo overlays/pwm1.dtbo overlays/i2c0.dtbo overlays/i2c1.dtbo"]
         - [PACKAGECONFIG:remove:pn-ffmpeg, "mmal"]
-        - [DISTRO_FEATURES:remove, "gobject-introspection-data"]
+#        - [DISTRO_FEATURES:remove, "gobject-introspection-data"]
       build_target: "%{ANTENNA_IMAGE}"
       layers:
         - *COMMON_YOCTO_LAYERS
@@ -186,10 +189,12 @@ components:
         - [HDMI_FORCE, "1"]
         - [DISPLAY_WIDTH, "1024"]
         - [DISPLAY_HEIGHT, "576"]
-        - [DISTRO_FEATURES:append, " gobject-introspection-data"]
+        - [DISTRO_FEATURES:append, " gobject-introspection-data polkit"]
       build_target: "%{STATION_IMAGE}"
       layers:
         - *COMMON_YOCTO_LAYERS
+        - "../meta-openembedded/meta-networking"
+        - "../meta-openembedded/meta-filesystems"
       target_images:
         - "tmp/deploy/images/%{STATION_MACHINE}/%{STATION_IMAGE}-%{STATION_MACHINE}.rootfs.ext3"
         - "tmp/deploy/images/%{STATION_MACHINE}/zImage"
@@ -216,6 +221,7 @@ components:
         - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start4cd.elf"
         - "tmp/deploy/images/%{STATION_MACHINE}/bootfiles/start4x.elf"
         - "tmp/deploy/images/%{STATION_MACHINE}/disable-wifi.dtbo"
+        - "tmp/deploy/images/%{STATION_MACHINE}/disable-bt.dtbo"
         - "tmp/deploy/images/%{STATION_MACHINE}/dwc2.dtbo"
         - "tmp/deploy/images/%{STATION_MACHINE}/gpio-ir-tx.dtbo"
         - "tmp/deploy/images/%{STATION_MACHINE}/gpio-ir.dtbo"
