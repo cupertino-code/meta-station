@@ -23,6 +23,7 @@ EXTRA_TOOLS = " \
     iproute2 \
     iptables \
     less \
+    libgpiod \
     lsof \
     netcat-openbsd \
     nmap \
