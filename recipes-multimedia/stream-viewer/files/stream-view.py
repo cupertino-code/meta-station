@@ -15,7 +15,6 @@ import argparse
 import signal
 import os
 import mmap
-import RPi.GPIO as GPIO
 from datetime import datetime
 import struct
 
@@ -23,7 +22,6 @@ gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GObject, GLib
 PID_FILE_PATH = "/tmp/stream-viewer.pid"
 MOUNT_HELPER_PATH = "/sys/kernel/mount_helper/mount_point"
-LED_PIN = 22
 SHARED_NAME = "/dev/shm/channel_data"
 
 class GstElementError(Exception):
@@ -226,7 +224,6 @@ class RTPStreamViewerCLI:
 
         self.is_recording = True
         self.set_recording_flag(True)
-        GPIO.output(LED_PIN, GPIO.HIGH)
         print(f"Started recording to: {filename}")
 
     def stop_recording(self):
@@ -240,7 +237,6 @@ class RTPStreamViewerCLI:
 
         # Wait a bit for EOS to propagate then clean up
         GLib.timeout_add(10, self.cleanup_recording_branch)
-        GPIO.output(LED_PIN, GPIO.LOW)
 
     def cleanup_recording_branch(self):
         """Clean up recording branch elements"""
@@ -316,8 +312,6 @@ def main():
 
     args = parser.parse_args()
 
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setup(LED_PIN, GPIO.OUT)
     viewer = RTPStreamViewerCLI(port=args.port, payload_type=args.payload, codec=args.codec)
     viewer.run()
 

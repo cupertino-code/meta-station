@@ -12,8 +12,7 @@ SRC_URI = " \
     file://stream-view.in \
 "
 
-RDEPENDS_${PN} += "rpi-gpio"
-DEPENDS += "python3-pygobject rpi-gpio"
+DEPENDS += "python3-pygobject"
 
 SERVICE_NAME = "stream-view"
 SERVICE_FILE = "${SERVICE_NAME}.service"
