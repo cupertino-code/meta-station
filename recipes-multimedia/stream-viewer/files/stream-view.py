@@ -251,6 +251,7 @@ class RTPStreamViewerCLI:
 
         self.record_elements = []
         self.is_recording = False
+        os.system('sync')
         print("Recording stopped")
         ret = self.pipeline.set_state(Gst.State.READY)
         self.set_recording_flag(False)
