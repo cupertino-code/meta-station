@@ -114,7 +114,7 @@ class RTPStreamViewerCLI:
         if not self.videosink:
             print("Could not create video sink")
             sys.exit(1)
-
+        self.videosink.set_property("x-offset", 0)
         # Add elements to pipeline
         elements = [
             self.udpsrc, self.rtpdepay, self.parser, self.decoder,
