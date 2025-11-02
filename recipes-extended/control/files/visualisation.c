@@ -82,6 +82,7 @@ static void *thread(void *arg MAYBE_UNUSED)
     }
     // print info about the buffer
     LOG1("Frame buffer %dx%d, %dbpp\n", vinfo.xres, vinfo.yres, vinfo.bits_per_pixel);
+    printf("Frame buffer %dx%d, %dbpp\n", vinfo.xres, vinfo.yres, vinfo.bits_per_pixel);
 
     // calculates size
     screensize = vinfo.xres * vinfo.yres * vinfo.bits_per_pixel / 8;
@@ -243,9 +244,9 @@ static void *thread(void *arg MAYBE_UNUSED)
                 timestamp = 0;
             }
         }
-        cairo_set_source_surface(cr, temp_surface, 0, 0);
+        cairo_set_source_surface(cr, temp_surface, ORIGIN_X, ORIGIN_Y);
         cairo_set_operator (cr, CAIRO_OPERATOR_SOURCE);
-        cairo_rectangle (cr, 0, 0, AREA_WIDTH, AREA_HEIGHT);
+        cairo_rectangle (cr, ORIGIN_X, ORIGIN_Y, AREA_WIDTH, AREA_HEIGHT);
         cairo_fill (cr);
         cairo_surface_flush(surface); 
         sleep(0);

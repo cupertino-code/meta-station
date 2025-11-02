@@ -9,6 +9,17 @@
 #define Y_OFFSET    100.0
 #define AREA_WIDTH  152
 #define AREA_HEIGHT 500
+// Additional information coordinates
+#ifndef VIDEO_WIDTH
+#define VIDEO_WIDTH 720
+#endif
+
+#ifndef VIDEO_HEIGHT
+#define VIDEO_HEIGHT 576
+#endif
+
+#define ORIGIN_X    VIDEO_WIDTH
+#define ORIGIN_Y    0
 
 #ifndef M_PI
 #define M_PI        3.14159265358979323846

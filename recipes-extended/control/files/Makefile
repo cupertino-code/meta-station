@@ -1,5 +1,8 @@
+VIDEO_WIDTH ?= 720
+VIDEO_HEIGHT ?= 576
+
 LDLIBS += -lpthread -lgpiod -lm -lcairo -lstdc++ -lyaml-cpp
-FLAGS = -Wall -Wextra -O2 -g
+FLAGS = -Wall -Wextra -O2 -g -DVIDEO_WIDTH=${VIDEO_WIDTH} -DVIDEO_HEIGHT=${VIDEO_HEIGHT}
 
 FLAGS += $$(pkg-config --cflags libmisc)
 CFLAGS += $(FLAGS)
