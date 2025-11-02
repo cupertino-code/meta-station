@@ -1,0 +1,133 @@
+From 3c6f3137174e493d2f138a755bdbade212b59ca2 Mon Sep 17 00:00:00 2001
+From: Code <code720220@gmail.com>
+Date: Sat, 1 Nov 2025 17:43:33 +0200
+Subject: [PATCH] fbdevsink: Add parameters for picture position in the
+ framebuffer
+
+Parameter x-offset for x coordinate
+Parameter y-offset for y coordinate
+
+Upstream-Status: Inappropriate [Station specific]
+Signed-off-by: Code <code720220@gmail.com>
+---
+ sys/fbdev/gstfbdevsink.c | 55 +++++++++++++++++++++++++++++++++++-----
+ sys/fbdev/gstfbdevsink.h |  1 +
+ 2 files changed, 49 insertions(+), 7 deletions(-)
+
+diff --git a/sys/fbdev/gstfbdevsink.c b/sys/fbdev/gstfbdevsink.c
+index d70dd4b..c345c91 100644
+--- a/sys/fbdev/gstfbdevsink.c
++++ b/sys/fbdev/gstfbdevsink.c
+@@ -48,7 +48,9 @@
+ enum
+ {
+   ARG_0,
+-  ARG_DEVICE
++  ARG_DEVICE,
++  ARG_OFFSET_X,
++  ARG_OFFSET_Y
+ };
+ 
+ #if 0
+@@ -238,13 +240,17 @@ gst_fbdevsink_setcaps (GstBaseSink * bsink, GstCaps * vscapslist)
+   fbdevsink->bytespp =
+       fbdevsink->fixinfo.line_length / fbdevsink->varinfo.xres_virtual;
+ 
+-  fbdevsink->cx = ((int) fbdevsink->varinfo.xres - fbdevsink->width) / 2;
+-  if (fbdevsink->cx < 0)
+-    fbdevsink->cx = 0;
++  if (!fbdevsink->set_cx) {
++      fbdevsink->cx = ((int) fbdevsink->varinfo.xres - fbdevsink->width) / 2;
++    if (fbdevsink->cx < 0)
++      fbdevsink->cx = 0;
++  }
+ 
+-  fbdevsink->cy = ((int) fbdevsink->varinfo.yres - fbdevsink->height) / 2;
+-  if (fbdevsink->cy < 0)
+-    fbdevsink->cy = 0;
++  if (!fbdevsink->set_cy) {
++    fbdevsink->cy = ((int) fbdevsink->varinfo.yres - fbdevsink->height) / 2;
++    if (fbdevsink->cy < 0)
++      fbdevsink->cy = 0;
++  }
+ 
+   fbdevsink->linelen = fbdevsink->width * fbdevsink->bytespp;
+   if (fbdevsink->linelen > fbdevsink->fixinfo.line_length)
+@@ -342,6 +348,7 @@ gst_fbdevsink_set_property (GObject * object, guint prop_id,
+     const GValue * value, GParamSpec * pspec)
+ {
+   GstFBDEVSink *fbdevsink;
++  int temp;
+ 
+   fbdevsink = GST_FBDEVSINK (object);
+ 
+@@ -351,6 +358,26 @@ gst_fbdevsink_set_property (GObject * object, guint prop_id,
+       fbdevsink->device = g_value_dup_string (value);
+       break;
+     }
++    case ARG_OFFSET_X: {
++      temp = g_value_get_int (value);
++      if (temp < 0)
++        temp = 0;
++      else if (temp > fbdevsink->varinfo.xres)
++        temp = fbdevsink->varinfo.xres;
++      fbdevsink->cx = temp;
++      fbdevsink->set_cx = 1;
++      break;
++    }
++    case ARG_OFFSET_Y: {
++      temp = g_value_get_int (value);
++      if (temp < 0)
++        temp = 0;
++      else if (temp > fbdevsink->varinfo.yres)
++        temp = fbdevsink->varinfo.yres;
++      fbdevsink->cy = temp;
++      fbdevsink->set_cy = 1;
++      break;
++    }
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -371,6 +398,14 @@ gst_fbdevsink_get_property (GObject * object, guint prop_id, GValue * value,
+       g_value_set_string (value, fbdevsink->device);
+       break;
+     }
++    case ARG_OFFSET_X: {
++      g_value_set_int (value, fbdevsink->cx);
++      break;
++    }
++    case ARG_OFFSET_Y: {
++      g_value_set_int (value, fbdevsink->cy);
++      break;
++    }
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -422,6 +457,12 @@ gst_fbdevsink_class_init (GstFBDEVSinkClass * klass)
+   g_object_class_install_property (G_OBJECT_CLASS (klass), ARG_DEVICE,
+       g_param_spec_string ("device", "device",
+           "The framebuffer device eg: /dev/fb0", NULL, G_PARAM_READWRITE));
++  g_object_class_install_property(G_OBJECT_CLASS(klass), ARG_OFFSET_X,
++      g_param_spec_int("x-offset", "x-offset",
++          "The x offset for the framebuffer", 0, G_MAXINT, 0, G_PARAM_READWRITE));
++  g_object_class_install_property(G_OBJECT_CLASS(klass), ARG_OFFSET_Y,
++      g_param_spec_int("y-offset", "y-offset",
++          "The y offset for the framebuffer", 0, G_MAXINT, 0, G_PARAM_READWRITE));
+ 
+   basesink_class->set_caps = GST_DEBUG_FUNCPTR (gst_fbdevsink_setcaps);
+   basesink_class->get_caps = GST_DEBUG_FUNCPTR (gst_fbdevsink_getcaps);
+diff --git a/sys/fbdev/gstfbdevsink.h b/sys/fbdev/gstfbdevsink.h
+index 6ab9bd0..f5172b2 100644
+--- a/sys/fbdev/gstfbdevsink.h
++++ b/sys/fbdev/gstfbdevsink.h
+@@ -57,6 +57,7 @@ struct _GstFBDEVSink {
+ 
+   int width, height;
+   int cx, cy, linelen, lines, bytespp;
++  int set_cx, set_cy;
+ 
+   int fps_n, fps_d;
+ };
+-- 
+2.34.1
+
