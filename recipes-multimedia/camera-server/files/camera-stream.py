@@ -16,6 +16,8 @@ WATCHDOG_TIMEOUT_US = 300000
 WATCHDOG_CHECK_MS = 1000
 BITRATE = 2000000
 PID_FILE = "/tmp/camera-stream.pid"
+VIDEO_WIDTH = 720
+VIDEO_HEIGHT = 576
 
 class GstElementError(Exception):
     def __init__(self, plugin):
@@ -55,7 +57,7 @@ class VideoStreamer:
 
             src.set_property("device", "/dev/video0")
             src.set_property("norm", "PAL")
-            caps = Gst.Caps.from_string("video/x-raw,format=UYVY,width=720,height=576,framerate=25/1")
+            caps = Gst.Caps.from_string(f"video/x-raw,format=UYVY,width={VIDEO_WIDTH},height={VIDEO_HEIGHT},framerate=25/1")
             capsfilter.set_property("caps", caps)
             encoder_controls = Gst.Structure.new_from_string(f"controls,video_bitrate={self.bitrate}")
             encoder.set_property("extra-controls", encoder_controls)
