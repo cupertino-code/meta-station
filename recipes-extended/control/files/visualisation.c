@@ -82,7 +82,6 @@ static void *thread(void *arg MAYBE_UNUSED)
     }
     // print info about the buffer
     LOG1("Frame buffer %dx%d, %dbpp\n", vinfo.xres, vinfo.yres, vinfo.bits_per_pixel);
-    printf("Frame buffer %dx%d, %dbpp\n", vinfo.xres, vinfo.yres, vinfo.bits_per_pixel);
 
     // calculates size
     screensize = vinfo.xres * vinfo.yres * vinfo.bits_per_pixel / 8;
