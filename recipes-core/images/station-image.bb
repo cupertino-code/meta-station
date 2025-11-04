@@ -21,6 +21,6 @@ KERNEL_MODULES = " \
 "
 
 IMAGE_INSTALL:append = " \
-    udev udev-extraconf \
+    udev udev-mount \
     ${KERNEL_MODULES} \
 "
