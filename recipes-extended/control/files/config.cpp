@@ -4,10 +4,12 @@
 #include <string>
 #include <yaml-cpp/yaml.h>
 #include <string.h>
+#include <pthread.h>
 #include "config.h"
 #include "crsf_protocol.h"
 
 static int initialized = 0;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 Config parse_yaml(const std::string &filepath)
 {
@@ -49,13 +51,16 @@ static Config config;
 extern "C" int load_config(const char *conf_name)
 {
     try {
+        pthread_mutex_lock(&mutex);
         config = parse_yaml(conf_name);
         initialized = 1;
     }
     catch (const std::exception &e) {
         std::cerr << "Error loading config: " << e.what() << std::endl;
+        pthread_mutex_unlock(&mutex);
         return -1;
     }
+    pthread_mutex_unlock(&mutex);
     return 0;
 }
 
@@ -130,6 +135,7 @@ int get_chan_info(crsf_channels_t *crsf, struct channel_data *data, unsigned int
         *size = 0;
         return 0;
     }
+    pthread_mutex_lock(&mutex);
     usval = get_channel_us(crsf, config.vrx_switch.channel - 1);
     if (!usval)
         return -1;
@@ -168,5 +174,6 @@ int get_chan_info(crsf_channels_t *crsf, struct channel_data *data, unsigned int
         }
     }
     *size = cnt;
+    pthread_mutex_unlock(&mutex);
     return *size;
 }

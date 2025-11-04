@@ -44,7 +44,9 @@
 #endif
 
 #define CONFIG_FILE "/etc/vrxtbl.yaml"
+#define CONFIG_FILE_NEW "/etc/vrxtbl.yaml.new"
 #define STREAM_VIEW_PID_FILE "/tmp/stream-viewer.pid"
+#define CONTROL_PID_FILE "/tmp/control.pid"
 
 #define BUFFER_SIZE 100
 
@@ -184,6 +186,7 @@ static inline void _set_timer_internal(int msec)
 static void record_button_callback(struct gpio_data *data MAYBE_UNUSED,
                                    int index MAYBE_UNUSED, int edge MAYBE_UNUSED)
 {
+    printf("Record button event\n");
     _set_timer_internal(30);
 }
 
@@ -280,7 +283,7 @@ int check_switch(struct gpio_data *data, int sw_index)
 
 static void signal_handler(int MAYBE_UNUSED sig)
 {
-    if (sig == SIGALRM) {
+    if (_likely(sig == SIGALRM)) {
         struct gpio_v2_line_values values;
 
         values.mask = 1;
@@ -308,6 +311,18 @@ static void signal_handler(int MAYBE_UNUSED sig)
         run = 0;
         close_fd(&sockets.server_sock);
         close_fd(&sockets.client_sock);
+    } else if (sig == SIGHUP) {
+        if (!load_config(CONFIG_FILE_NEW)) {
+            if (!rename(CONFIG_FILE_NEW, CONFIG_FILE))
+                return;
+            perror("Install config file");
+            unlink(CONFIG_FILE_NEW);
+            load_config(CONFIG_FILE);
+            return;
+        }
+        printf("Can`t load new config");
+        unlink(CONFIG_FILE_NEW);
+        load_config(CONFIG_FILE);
     }
 }
 
@@ -629,6 +644,17 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
     return 0;
 }
 
+static void store_pid(void)
+{
+    FILE *pidfile;
+
+    pidfile = fopen(CONTROL_PID_FILE, "w");
+    if (pidfile) {
+        fprintf(pidfile, "%d", getpid());
+        fclose(pidfile);
+    }
+}
+
 int main(int argc, char *argv[])
 {
     int res;
@@ -719,9 +745,11 @@ int main(int argc, char *argv[])
     run = 1;
     sockets.server_sock = -1;
     sockets.client_sock = -1;
+    store_pid();
     signal(SIGALRM, signal_handler);
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
+    signal(SIGHUP, signal_handler);
     load_config(CONFIG_FILE);
     pthread_create(&reader_thread, NULL, &reader, (void *)&data);
     init_shared(DEFAULT_SHARED_NAME, &antenna_status.shm);
