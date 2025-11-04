@@ -71,7 +71,7 @@ common_data:
     - [PACKAGECONFIG:append:pn-gstreamer1.0-plugins-good, " libv4l2"]
     - [RPI_KERNEL_DEVICETREE:append, " broadcom/bcm2711-rpi-4-b.dtb 
         broadcom/bcm2710-rpi-zero-2-w.dtb broadcom/bcm2710-rpi-zero-2.dtb"]
-    - ["PREFERRED_VERSION_libgpiod", "1.6.%"]
+    - [PREFERRED_VERSION_libgpiod, "1.6.%"]
     - [RPI_KERNEL_DEVICETREE:remove,
         "broadcom/bcm2708-rpi-b.dtb broadcom/bcm2708-rpi-b-rev1.dtb
          broadcom/bcm2708-rpi-b-plus.dtb
@@ -86,6 +86,8 @@ common_data:
     - [IMAGE_ROOTFS_EXTRA_SPACE, "2097152"]
     - [IMAGE_OVERHEAD_FACTOR, "2.0"]
     - [PREFERRED_PROVIDER_virtual/pkgconfig-native, "pkgconf-native"]
+    - [VIDEO_WIDTH, "720"]
+    - [VIDEO_HEIGHT, "576"]
 #    - [EXTRA_IMAGE_FEATURES:remove, "debug-tweaks"]
 components:
   antenna:
