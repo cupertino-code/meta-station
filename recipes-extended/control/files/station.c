@@ -1,29 +1,30 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <linux/gpio.h>
-#include <sys/ioctl.h>
-#include <string.h>
+#include "station.h"
+
+#include <arpa/inet.h>
+#include <errno.h>
 #include <fcntl.h>
-#include <unistd.h>
+#include <getopt.h>
+#include <linux/gpio.h>
+#include <netinet/in.h>
 #include <poll.h>
 #include <pthread.h>
+#include <signal.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
 #include <sys/time.h>
 #include <time.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <getopt.h>
-#include <errno.h>
-#include <signal.h>
+#include <unistd.h>
 
-#include "protocol.h"
-#include "visualisation.h"
-#include "station.h"
 #include "common.h"
 #include "config.h"
-#include "utils.h"
+#include "protocol.h"
 #include "shmem.h"
+#include "utils.h"
+#include "visualisation.h"
 
 // Chip 0 on older Pi models, chip 4 on Pi 5.
 #define CHIP "/dev/gpiochip0"
@@ -37,7 +38,8 @@
 
 #define RISING_EDGE GPIO_V2_LINE_EVENT_RISING_EDGE
 #define FALLING_EDGE GPIO_V2_LINE_EVENT_FALLING_EDGE
-#define GPIO_V2_LINE_FLAG_EVENT_BOTH_EDGES (GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_EDGE_FALLING)
+#define GPIO_V2_LINE_FLAG_EVENT_BOTH_EDGES \
+    (GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_EDGE_FALLING)
 
 #ifndef CONSUMER
 #define CONSUMER "station_control"
@@ -117,18 +119,18 @@ static void encoder_callback(struct gpio_data *data, int index, int edge);
 static void button_callback(struct gpio_data *data, int index, int edge);
 static void record_button_callback(struct gpio_data *data, int index, int edge);
 
-#define INDEX_PIN_A         0
-#define INDEX_PIN_B         1
-#define INDEX_PIN_BTN       2
-#define INDEX_PIN_MASTER    3
-#define INDEX_PIN_RECORD    4
+#define INDEX_PIN_A 0
+#define INDEX_PIN_B 1
+#define INDEX_PIN_BTN 2
+#define INDEX_PIN_MASTER 3
+#define INDEX_PIN_RECORD 4
 
 struct watch_pin pins[] = {
     {INDEX_PIN_A,      GPIO_PIN_A,      0, encoder_callback,       &pin_a_data,     -1},
     {INDEX_PIN_B,      GPIO_PIN_B,      0, encoder_callback,       &pin_b_data,     -1},
     {INDEX_PIN_BTN,    GPIO_PIN_BTN,    0, button_callback,        &enc_btn_data,   -1},
     {INDEX_PIN_MASTER, GPIO_PIN_MASTER, 0, button_callback,        &master_sw_data, -1},
-    {INDEX_PIN_RECORD, GPIO_PIN_RECORD, 0, record_button_callback, &record_sw_data,  -1}
+    {INDEX_PIN_RECORD, GPIO_PIN_RECORD, 0, record_button_callback, &record_sw_data, -1}
 };
 
 struct gpio_data {
@@ -137,7 +139,7 @@ struct gpio_data {
     struct encoder_data encoder;
     uint32_t sw_timestamp[SWITCH_NUM];
     uint32_t sw_change;
-    uint8_t sw_index[SWITCH_NUM];       // Index of the switch in pins array
+    uint8_t sw_index[SWITCH_NUM];  // Index of the switch in pins array
     struct watch_pin *pins;
 };
 
@@ -183,8 +185,8 @@ static inline void _set_timer_internal(int msec)
     }
 }
 
-static void record_button_callback(struct gpio_data *data MAYBE_UNUSED,
-                                   int index MAYBE_UNUSED, int edge MAYBE_UNUSED)
+static void record_button_callback(struct gpio_data *data MAYBE_UNUSED, int index MAYBE_UNUSED,
+                                   int edge MAYBE_UNUSED)
 {
     printf("Record button event\n");
     _set_timer_internal(30);
@@ -210,7 +212,6 @@ static void encoder_callback(struct gpio_data *data, int index, int edge)
     else
         pins[index].state = 0;
     if (pins[PIN_A].state != data->encoder.last_a || pins[PIN_B].state != data->encoder.last_b) {
-
         if (index == PIN_A) {
             if (pins[PIN_A].state == pins[PIN_B].state)
                 curr_counter--;
@@ -249,7 +250,7 @@ static void button_callback(struct gpio_data *data, int index, int edge)
         pins[index].state = 0;
         data->switch_status |= pin;
     }
-    LOG2("Edge %s on  %ld\n", edge == RISING_EDGE? "RISING":"FALLING", pin);
+    LOG2("Edge %s on  %ld\n", edge == RISING_EDGE ? "RISING" : "FALLING", pin);
     timestamp = get_timestamp();
     if (timestamp - prev_timestamp < 5) {
         prev_timestamp = timestamp;
@@ -263,14 +264,14 @@ static void button_callback(struct gpio_data *data, int index, int edge)
 
 int check_switch(struct gpio_data *data, int sw_index)
 {
-//    uint32_t timestamp;
+    //    uint32_t timestamp;
     uint8_t pin_index = data->sw_index[sw_index];
 
-//    timestamp = get_timestamp();
-//    if (timestamp - data->sw_timestamp[sw_index] < 5) {
-//        LOG2("Switch %d ignored due to debounce.\n", sw_index);
-//        return 0;
-//    }
+    //    timestamp = get_timestamp();
+    //    if (timestamp - data->sw_timestamp[sw_index] < 5) {
+    //        LOG2("Switch %d ignored due to debounce.\n", sw_index);
+    //        return 0;
+    //    }
     data->sw_change &= ~BIT(sw_index);
     if (data->pins[pin_index].state) {
         LOG1("Button pin %d released.\n", data->pins[pin_index].gpio);
@@ -298,7 +299,7 @@ static void signal_handler(int MAYBE_UNUSED sig)
                 int pid;
 
                 memset(buf, 0, sizeof(buf));
-                if (fread(buf, 1, sizeof(buf)-1, fp)) {
+                if (fread(buf, 1, sizeof(buf) - 1, fp)) {
                     pid = atoi(buf);
                     if (pid) {
                         kill(pid, SIGUSR1);
@@ -339,8 +340,7 @@ void *reader(void *arg)
     }
 
     while (run) {
-
-        int poll_result = poll(poll_descriptors, NUM_PINS, 100); // time out after 100 milliseconds
+        int poll_result = poll(poll_descriptors, NUM_PINS, 100);  // time out after 100 milliseconds
 
         if (poll_result == 0) {
             if (data->encoder.diff_counter) {
@@ -353,8 +353,7 @@ void *reader(void *arg)
                     LOG1("Encoder switch changed: 0x%x\n", data->switch_status);
                     data->sw_change &= ~SWITCH_ENCODER;
                 }
-                if (data->sw_change & SWITCH_ANTENNA)
-                {
+                if (data->sw_change & SWITCH_ANTENNA) {
                     check_switch(data, SWITCH_ANTENNA_NUM);
                     LOG1("Antenna switch changed: 0x%x\n", data->switch_status);
                     data->sw_change &= ~SWITCH_ANTENNA;
@@ -373,7 +372,6 @@ void *reader(void *arg)
 
         for (i = 0; i < NUM_PINS; i++) {
             if (poll_descriptors[i].revents & POLLIN) {
-
                 int read_result = read(poll_descriptors[i].fd, &event, sizeof(event));
 
                 if (read_result == -1)
@@ -410,13 +408,13 @@ static void send_message(struct gpio_data *data)
     command->position = data->encoder.counter;
     command->switches = data->switch_status;
 
-    *crc = crc8_data(&buffer[offsetof(struct rotator_protocol, timestamp)], 
+    *crc = crc8_data(&buffer[offsetof(struct rotator_protocol, timestamp)],
                      offsetof(struct rotator_protocol, payload) -
                      offsetof(struct rotator_protocol, timestamp) +
                      sizeof(struct rotator_command));
 
-    ssize_t bytes_written = write(data->fd, buffer,
-        sizeof(struct rotator_protocol) + sizeof(struct rotator_command) + 1);
+    ssize_t bytes_written = write(
+        data->fd, buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_command) + 1);
 
     LOG2("Sent %d bytes message: length=%d, CRC=0x%x\n", (int)bytes_written, msg->length, *crc);
     dump(NULL, buffer, sizeof(struct rotator_protocol) + sizeof(struct rotator_command) + 1);
@@ -475,7 +473,7 @@ int parse_byte(uint8_t byte)
         case STATE_TYPE:
             if (byte != MESSAGE_TYPE_STATUS && byte != MESSAGE_TYPE_COMMAND) {
                 fprintf(stderr, "Unsupported message type: %d\n", byte);
-                RESET; // reset state
+                RESET;  // reset state
                 break;
             }
             if (byte != MESSAGE_TYPE_STATUS) {
@@ -489,11 +487,11 @@ int parse_byte(uint8_t byte)
             buffer.protocol_msg.length = byte;
             if (buffer.protocol_msg.length != sizeof(struct rotator_status)) {
                 fprintf(stderr, "Invalid payload length: %d\n", buffer.protocol_msg.length);
-                RESET; // reset state
+                RESET;  // reset state
                 break;
             }
             state = STATE_TIMESTAMP;
-            expected_length = 4; // 4 bytes for timestamp
+            expected_length = 4;  // 4 bytes for timestamp
             current_length = 0;
             break;
         case STATE_TIMESTAMP:
@@ -505,19 +503,17 @@ int parse_byte(uint8_t byte)
                 current_length = 0;
             }
             break;
-        case STATE_PAYLOAD:
-        {
+        case STATE_PAYLOAD: {
             uint8_t *buf = (uint8_t *)&buffer.payload;
             buf[current_length++] = byte;
             if (current_length == expected_length) {
-                expected_length = 1; // CRC byte
+                expected_length = 1;  // CRC byte
                 state = STATE_CRC;
             }
             break;
         }
-        case STATE_CRC:
-        {
-            RESET; // reset state
+        case STATE_CRC: {
+            RESET;  // reset state
             if (wrong_message)
                 break;
             uint8_t *buf = (uint8_t *)&buffer.protocol_msg;
@@ -566,7 +562,8 @@ int start_server(int tcp_port, int fd_recv, struct gpio_data *data)
     printf("TCP server started on port %d\n", tcp_port);
 
     while (run) {
-        sockets.client_sock = accept(sockets.server_sock, (struct sockaddr *)&client_addr, &addr_len);
+        sockets.client_sock =
+            accept(sockets.server_sock, (struct sockaddr *)&client_addr, &addr_len);
         if (sockets.client_sock < 0) {
             perror("Error accepting connection");
             continue;
@@ -686,7 +683,7 @@ int main(int argc, char *argv[])
             case 'h':
                 help();
                 return 0;
-            case 'p': // TCP port
+            case 'p':  // TCP port
                 tcp_port = atoi(optarg);
                 printf("TCP port set to: %d\n", tcp_port);
                 break;
@@ -703,8 +700,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    for (unsigned i = 0; i < NUM_PINS; i++)
-    {
+    for (unsigned i = 0; i < NUM_PINS; i++) {
         memset(&req[i], 0, sizeof(req[i]));
         req[i].num_lines = 1;
         req[i].offsets[0] = pins[i].gpio;
@@ -730,8 +726,7 @@ int main(int argc, char *argv[])
     data.sw_index[SWITCH_ANTENNA_NUM] = 3;
     data.sw_index[SWITCH_ENCODER_NUM] = 2;
     values.mask = 1;
-    res = ioctl(pins[data.sw_index[SWITCH_ANTENNA_NUM]].fd, GPIO_V2_LINE_GET_VALUES_IOCTL,
-                &values);
+    res = ioctl(pins[data.sw_index[SWITCH_ANTENNA_NUM]].fd, GPIO_V2_LINE_GET_VALUES_IOCTL, &values);
     if (res < 0) {
         perror("Failed to get GPIO value");
         close(pins[data.sw_index[SWITCH_ANTENNA_NUM]].fd);

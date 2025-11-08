@@ -1,47 +1,48 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <linux/gpio.h>
-#include <gpiod.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <fcntl.h>
-#include <poll.h>
-#include <unistd.h>
 #include <ctype.h>
 #include <errno.h>
-#include <string.h>
+#include <fcntl.h>
+#include <getopt.h>
+#include <gpiod.h>
+#include <linux/gpio.h>
+#include <netinet/in.h>
+#include <poll.h>
 #include <signal.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
 #include <sys/time.h>
 #include <time.h>
-#include <getopt.h>
-#include "protocol.h"
+#include <unistd.h>
+
 #include "common.h"
+#include "protocol.h"
 #include "utils.h"
- 
+
 #define BUFFER_SIZE 256
 #define PWM_CHIP_PATH "/sys/class/pwm/pwmchip0"
 #define PWM_CHANNEL 0
-#define PWM_PERIOD 20000000 // 20ms period for 50Hz frequency
-#define PWM_DUTY_CYCLE_MIN 600000 // 600us pulse width
-#define PWM_DUTY_CYCLE_MAX 2400000 // 2.4ms pulse width
+#define PWM_PERIOD 20000000         // 20ms period for 50Hz frequency
+#define PWM_DUTY_CYCLE_MIN 600000   // 600us pulse width
+#define PWM_DUTY_CYCLE_MAX 2400000  // 2.4ms pulse width
 #define TICK_FAST_INCREMENT 5
 #define TICK_PWM 3000
-#define ANGLE_MIN  -120
-#define ANGLE_MAX  120
+#define ANGLE_MIN -120
+#define ANGLE_MAX 120
 #define PWM_CENTER (PWM_DUTY_CYCLE_MIN + PWM_DUTY_CYCLE_MAX) / 2
 #define INI_FILE_NAME "/etc/control.ini"
 // Chip 0 on older Pi models, chip 4 on Pi 5.
 #define GPIO_CHIP_NAME "gpiochip0"
-#define GPIO_CHIP_PATH "/dev/"GPIO_CHIP_NAME
+#define GPIO_CHIP_PATH "/dev/" GPIO_CHIP_NAME
 #define GPIO_MASTER_SW 25
 #define GPIO_LOW_POWER 16
 
-#define TIMER_PWM   0
+#define TIMER_PWM 0
 #define TIMER_POWER 1
-#define TIMER_INTERVAL 500 // Timer interval in ms
+#define TIMER_INTERVAL 500  // Timer interval in ms
 
 #ifndef CONSUMER
 #define CONSUMER "antenna_control"
@@ -61,8 +62,8 @@ struct antenna_status {
     int power_cnt;
 };
 
-#define SOURCE_PWM      0
-#define SOURCE_SWITCH   1
+#define SOURCE_PWM 0
+#define SOURCE_SWITCH 1
 
 static struct antenna_status antenna_status;
 
@@ -192,7 +193,7 @@ static void set_power(void)
         int pid;
 
         memset(buf, 0, sizeof(buf));
-        if (fread(buf, 1, sizeof(buf)-1, fp)) {
+        if (fread(buf, 1, sizeof(buf) - 1, fp)) {
             pid = atoi(buf);
             if (pid) {
                 kill(pid, CHECK_BIT(antenna_status.power_status, POWER_BIT) ? SIGUSR1 : SIGUSR2);
@@ -315,7 +316,7 @@ void process_command(struct rotator_command *command)
         set_switch(&antenna_status);
     }
     LOG1("position=%d(delta %d), switches=%d duty_cycle=%d\n", command->position, delta,
-          command->switches, current_pwm);
+         command->switches, current_pwm);
     last_position = command->position;
 }
 
@@ -366,7 +367,7 @@ int parse_byte(uint8_t byte)
         case STATE_TYPE:
             if (byte != MESSAGE_TYPE_STATUS && byte != MESSAGE_TYPE_COMMAND) {
                 fprintf(stderr, "Unsupported message type: %d\n", byte);
-                RESET; // reset state
+                RESET;  // reset state
                 break;
             }
             if (byte != MESSAGE_TYPE_COMMAND) {
@@ -380,12 +381,12 @@ int parse_byte(uint8_t byte)
             message.protocol_msg.length = byte;
             if (message.protocol_msg.length != sizeof(struct rotator_command)) {
                 fprintf(stderr, "Invalid payload length: %d\n", message.protocol_msg.length);
-                state = STATE_START_BYTE; // reset state
+                state = STATE_START_BYTE;  // reset state
                 break;
             }
             state = STATE_TIMESTAMP;
             current_length = 0;
-            expected_length = 4; // 4 bytes for timestamp
+            expected_length = 4;  // 4 bytes for timestamp
             break;
         case STATE_TIMESTAMP:
             message.protocol_msg.timestamp = byte << 24 | message.protocol_msg.timestamp >> 8;
@@ -393,7 +394,7 @@ int parse_byte(uint8_t byte)
             if (expected_length == current_length) {
                 if (message.protocol_msg.length != sizeof(struct rotator_command)) {
                     fprintf(stderr, "Invalid payload length: %d\n", message.protocol_msg.length);
-                    RESET; // reset state
+                    RESET;  // reset state
                     break;
                 }
                 state = STATE_PAYLOAD;
@@ -401,24 +402,22 @@ int parse_byte(uint8_t byte)
                 current_length = 0;
             }
             break;
-        case STATE_PAYLOAD:
-        {
+        case STATE_PAYLOAD: {
             uint8_t *buf = (uint8_t *)&message.encoder_msg;
             buf[current_length++] = byte;
             if (current_length == expected_length) {
-                expected_length = 1; // CRC byte
+                expected_length = 1;  // CRC byte
                 state = STATE_CRC;
             }
             break;
         }
-        case STATE_CRC:
-        {
+        case STATE_CRC: {
             RESET;
             if (wrong_message)
                 break;
             uint8_t *buf = (uint8_t *)&message;
             uint8_t crc = crc8_data(&buf[offsetof(struct rotator_protocol, timestamp)],
-                message.protocol_msg.length + 4);
+                                    message.protocol_msg.length + 4);
             if (byte != crc) {
                 fprintf(stderr, "Have %02x Expected %02x Invalid CRC\n", byte, crc);
                 break;
@@ -589,7 +588,7 @@ int main(int argc, char *argv[])
         {NULL, 0, NULL, 0}
     };
 
-        while ((opt = getopt_long(argc, argv, "vVhp:", long_options, &long_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "vVhp:", long_options, &long_index)) != -1) {
         switch (opt) {
             case 'V':
                 printf("Version %s\n", VERSION);
@@ -600,7 +599,7 @@ int main(int argc, char *argv[])
             case 'h':
                 help();
                 return 0;
-            case 'p': // TCP port
+            case 'p':  // TCP port
                 tcp_port = atoi(optarg);
                 printf("TCP port set to: %d\n", tcp_port);
                 break;

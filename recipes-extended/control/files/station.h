@@ -14,4 +14,4 @@ struct antenna_status {
 
 extern struct antenna_status antenna_status;
 
-#endif // STATION_H_INCLUDED
+#endif  // STATION_H_INCLUDED
