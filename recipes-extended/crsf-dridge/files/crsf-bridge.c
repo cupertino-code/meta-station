@@ -1,22 +1,23 @@
+#include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <getopt.h>
+#include <netinet/in.h>
+#include <poll.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <termios.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <signal.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <poll.h>
-#include <getopt.h>
-#include <time.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
+#include <termios.h>
+#include <time.h>
+#include <unistd.h>
+
 #include "circ_buf.h"
+#include "crsf_protocol.h"
 #include "shmem.h"
 #include "utils.h"
-#include "crsf_protocol.h"
 
 #define UART_DEVICE "/dev/ttyS0"
 #define BAUD_RATE 115200
@@ -28,21 +29,21 @@
 #define VERSION "1.0"
 
 int verbose = 0;
-int tx_mode = 0; // TX mode flag
-int diagnostic = 0; // Diagnostic flag
+int tx_mode = 0;     // TX mode flag
+int diagnostic = 0;  // Diagnostic flag
 
 typedef void (*process_func_t)(int uart_fd, int udp_sock, const char *ip_addr, uint16_t udp_port);
 
 process_func_t process_connection_func = NULL;
 
-#define DSCP_EF 0x2e // 46
+#define DSCP_EF 0x2e  // 46
 #define IPTOS_EF (DSCP_EF << 2)
 
-#define STATE_SOURCE    0
-#define STATE_LENGTH    1
-#define STATE_TYPE      2
-#define STATE_PAYLOAD   3
-#define STATE_CRC       4
+#define STATE_SOURCE 0
+#define STATE_LENGTH 1
+#define STATE_TYPE 2
+#define STATE_PAYLOAD 3
+#define STATE_CRC 4
 
 struct parser_state {
     int state;
@@ -50,8 +51,8 @@ struct parser_state {
     int expected_length;
     int payload_length;
     int payload_pos;
-    uint64_t packets;   // parsed packets
-    uint64_t errs;      // unparsed packets
+    uint64_t packets;  // parsed packets
+    uint64_t errs;     // unparsed packets
     uint8_t buffer[CRSF_MAX_PACKET_SIZE];
     uint8_t type;
     uint8_t *payload;
@@ -87,7 +88,8 @@ void help()
 volatile int run;
 volatile int *sock;
 
-void sigint_handler(int sig) {
+void sigint_handler(int sig)
+{
     printf("\nGot signal SIGINT (Ctrl+C). Exiting...\n");
     run = 0;
     if (sock && *sock) {
@@ -144,14 +146,12 @@ int setup_uart(char *device, int baud_rate)
     struct termios tty_old_config;
 
     uart_fd = open(device, O_RDWR | O_NOCTTY | O_SYNC);
-    if (uart_fd < 0)
-    {
+    if (uart_fd < 0) {
         perror("Error opening UART");
         return -1;
     }
 
-    if (tcgetattr(uart_fd, &tty_config) != 0)
-    {
+    if (tcgetattr(uart_fd, &tty_config) != 0) {
         perror("Error tcgetattr");
         close(uart_fd);
         return -1;
@@ -164,23 +164,22 @@ int setup_uart(char *device, int baud_rate)
     cfsetospeed(&tty_config, baud_rate);
 
     // Raw mode: no input or output processing
-    tty_config.c_cflag |= (CLOCAL | CREAD); // Enable receiver, ignore modem status lines
-    tty_config.c_cflag &= ~PARENB;          // No parity
-    tty_config.c_cflag &= ~CSTOPB;          // 1 stop bit
-    tty_config.c_cflag &= ~CSIZE;           // Clear character size mask
-    tty_config.c_cflag |= CS8;              // 8 data bits
+    tty_config.c_cflag |= (CLOCAL | CREAD);  // Enable receiver, ignore modem status lines
+    tty_config.c_cflag &= ~PARENB;           // No parity
+    tty_config.c_cflag &= ~CSTOPB;           // 1 stop bit
+    tty_config.c_cflag &= ~CSIZE;            // Clear character size mask
+    tty_config.c_cflag |= CS8;               // 8 data bits
 
-    tty_config.c_iflag = 0; // Disable all input processing
-    tty_config.c_oflag = 0; // Disable all output processing
-    tty_config.c_lflag = 0; // Disable all local modes
+    tty_config.c_iflag = 0;  // Disable all input processing
+    tty_config.c_oflag = 0;  // Disable all output processing
+    tty_config.c_lflag = 0;  // Disable all local modes
 
     // Set control characters for non-blocking read
     tty_config.c_cc[VMIN] = 1;
     tty_config.c_cc[VTIME] = 0;
 
     // Apply the changes immediately
-    if (tcsetattr(uart_fd, TCSANOW, &tty_config) != 0)
-    {
+    if (tcsetattr(uart_fd, TCSANOW, &tty_config) != 0) {
         perror("Error tcsetattr");
         close(uart_fd);
         return -1;
@@ -190,9 +189,7 @@ int setup_uart(char *device, int baud_rate)
 
     // This part is for demonstration and would need the restore logic
     if (verbose)
-    {
         printf("UART configured on %s with baud rate %d\n", device, baud_rate);
-    }
     return uart_fd;
 }
 #endif
@@ -220,8 +217,7 @@ int parser(struct parser_state *parser, uint8_t byte)
 
     switch (parser->state) {
         case STATE_SOURCE:
-            if (byte == CRSF_ADDRESS_RADIO_TRANSMITTER ||
-                byte == CRSF_ADDRESS_CRSF_TRANSMITTER ||
+            if (byte == CRSF_ADDRESS_RADIO_TRANSMITTER || byte == CRSF_ADDRESS_CRSF_TRANSMITTER ||
                 byte == CRSF_ADDRESS_FLIGHT_CONTROLLER) {
                 parser->buffer[0] = byte;
                 parser->state = STATE_LENGTH;
@@ -264,18 +260,18 @@ int parser(struct parser_state *parser, uint8_t byte)
             uint8_t crc = crc8_data(&parser->buffer[2], parser->payload_length + 1);
             if (crc == byte) {
                 parser->packets++;
-                return parser->length; // Return length of complete message
+                return parser->length;  // Return length of complete message
             } else {
                 parser->errs++;
-                return -parser->length; // Return length of complete message
+                return -parser->length;  // Return length of complete message
             }
 
         default:
-            parser->state = STATE_SOURCE; // Reset state on error
+            parser->state = STATE_SOURCE;  // Reset state on error
             parser->errs++;
             break;
     }
-    return 0; // Message not complete yet
+    return 0;  // Message not complete yet
 }
 
 void process_tx_packet(struct shared_memory *shm, struct parser_state *parser)
@@ -284,7 +280,7 @@ void process_tx_packet(struct shared_memory *shm, struct parser_state *parser)
         struct shared_buffer *buf = (struct shared_buffer *)shm->ptr;
         if (parser->type == 0x16 && parser->payload_length >= 22) {
             memcpy(&buf->channels, parser->payload, parser->payload_length);
-            buf->flag = 1; // Indicate new data available
+            buf->flag = 1;  // Indicate new data available
         }
     }
 }
@@ -304,8 +300,7 @@ void process_connection_tx(int uart_fd, int udp_sock, const char *ip_addr, uint1
 
     to.sin_family = AF_INET;
     to.sin_port = htons(udp_port);
-    if (inet_pton(AF_INET, ip_addr, &to.sin_addr) <= 0)
-    {
+    if (inet_pton(AF_INET, ip_addr, &to.sin_addr) <= 0) {
         perror("Invalid IP address");
         close(udp_sock);
         return;
@@ -322,8 +317,8 @@ void process_connection_tx(int uart_fd, int udp_sock, const char *ip_addr, uint1
         }
         if (diagnostic) {
             printf("UDP  packets: %llu errors: %llu\n", net_parser.packets, net_parser.errs);
-            printf("UART packets: %llu errors: %llu\r\033[A",
-                   uart_parser.packets, uart_parser.errs);
+            printf("UART packets: %llu errors: %llu\r\033[A", uart_parser.packets,
+                   uart_parser.errs);
         }
         if (ret == 0)
             continue;
@@ -344,7 +339,7 @@ void process_connection_tx(int uart_fd, int udp_sock, const char *ip_addr, uint1
                         }
                         if (verbose) {
                             printf("UART -> UDP: sent %d bytes\n", uart_parser.length);
-                            if (verbose > 1 )
+                            if (verbose > 1)
                                 dump("UART data", uart_parser.buffer, uart_parser.length);
                         }
                         if (!cbuf_empty(&cbuf)) {
@@ -373,16 +368,14 @@ void process_connection_tx(int uart_fd, int udp_sock, const char *ip_addr, uint1
 
         if (fds[1].revents & POLLIN) {
             from_len = sizeof(struct sockaddr_in);
-            bytes_read = recvfrom(udp_sock, buffer, sizeof(buffer), 0,
-                                  (struct sockaddr *)&from, &from_len);
+            bytes_read =
+                recvfrom(udp_sock, buffer, sizeof(buffer), 0, (struct sockaddr *)&from, &from_len);
             if (bytes_read > 0) {
                 for (int i = 0; i < bytes_read; i++) {
                     int len = parser(&net_parser, buffer[i]);
-                    if (len > 0)
-                    {
+                    if (len > 0) {
                         cbuf_put(&cbuf, net_parser.buffer);
-                        if (verbose)
-                        {
+                        if (verbose) {
                             printf("UDP(from %s): received %d bytes\n", inet_ntoa(from.sin_addr),
                                    net_parser.length);
                             if (verbose > 1)
@@ -439,13 +432,14 @@ void process_connection(int uart_fd, int udp_sock, const char *ip_addr, uint16_t
         if (fds[0].revents & POLLIN) {
             bytes_read = read(uart_fd, buffer, sizeof(buffer));
             if (bytes_read > 0) {
-                if (sendto(udp_sock, buffer, bytes_read, 0, (struct sockaddr *)&to, sizeof(to)) < 0) {
+                if (sendto(udp_sock, buffer, bytes_read, 0, (struct sockaddr *)&to, sizeof(to)) <
+                    0) {
                     perror("Error sending over UDP");
                     continue;
                 }
                 if (verbose) {
                     printf("UART -> UDP: sent %zd bytes\n", bytes_read);
-                    if (verbose > 1 )
+                    if (verbose > 1)
                         dump("UART data", buffer, bytes_read);
                 }
             } else if (bytes_read == 0) {
@@ -459,16 +453,16 @@ void process_connection(int uart_fd, int udp_sock, const char *ip_addr, uint16_t
 
         if (fds[1].revents & POLLIN) {
             from_len = sizeof(struct sockaddr_in);
-            bytes_read = recvfrom(udp_sock, buffer, sizeof(buffer), 0,
-                                  (struct sockaddr *)&from, &from_len);
+            bytes_read =
+                recvfrom(udp_sock, buffer, sizeof(buffer), 0, (struct sockaddr *)&from, &from_len);
             if (bytes_read > 0) {
                 if (write(uart_fd, buffer, bytes_read) < 0) {
                     perror("Error sending over UART");
                     break;
                 }
                 if (verbose) {
-                    printf("UDP(from %s) -> UART: sent %zd bytes\n",
-                           inet_ntoa(from.sin_addr), bytes_read);
+                    printf("UDP(from %s) -> UART: sent %zd bytes\n", inet_ntoa(from.sin_addr),
+                           bytes_read);
                     if (verbose > 1)
                         dump("UDP data", buffer, bytes_read);
                 }
@@ -567,22 +561,22 @@ int main(int argc, char *argv[])
             case 'h':
                 help();
                 return 0;
-            case 'd': // Diagnostic
+            case 'd':  // Diagnostic
                 diagnostic = 1;
                 break;
-            case 'u': // UART device
+            case 'u':  // UART device
                 strncpy(uart_device, optarg, sizeof(uart_device) - 1);
                 printf("UART device set to: %s\n", optarg);
                 break;
-            case 'p': // UDP port
+            case 'p':  // UDP port
                 udp_port = atoi(optarg);
                 printf("UDP port set to: %d\n", udp_port);
                 break;
-            case 'b': // Baud rate
+            case 'b':  // Baud rate
                 baud_rate = atoi(optarg);
                 printf("Baud rate set to: %d\n", baud_rate);
                 break;
-            case 't': // TX mode
+            case 't':  // TX mode
                 tx_mode = 1;
                 printf("TX mode enabled.\n");
                 process_connection_func = process_connection_tx;
@@ -612,8 +606,10 @@ int main(int argc, char *argv[])
         init_shared(DEFAULT_SHARED_NAME, &shm);
     }
 
-    net_parser.errs = 0; net_parser.packets = 0;
-    uart_parser.errs = 0; uart_parser.packets = 0;
+    net_parser.errs = 0;
+    net_parser.packets = 0;
+    uart_parser.errs = 0;
+    uart_parser.packets = 0;
 
     cbuffers = (uint8_t *)malloc(CRSF_MAX_PACKET_SIZE * CBUF_NUM * sizeof(uint8_t));
     cbuf_init(&cbuf, cbuffers, CBUF_NUM, CRSF_MAX_PACKET_SIZE * sizeof(uint8_t));

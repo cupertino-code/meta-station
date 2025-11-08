@@ -1,9 +1,9 @@
 #ifndef _CIRCBUF_H_INCLUDED
 #define _CIRCBUF_H_INCLUDED
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
 
 // The hidden definition of our circular buffer structure
 struct circular_buf {
@@ -11,11 +11,12 @@ struct circular_buf {
     size_t item_size;
     size_t head;
     size_t tail;
-    size_t max; //of the buffer
+    size_t max;  // of the buffer
     bool full;
 };
 
-struct circular_buf* cbuf_init(struct circular_buf *cbuf, uint8_t *buffer, size_t size, size_t item_size);
+struct circular_buf *cbuf_init(struct circular_buf *cbuf, uint8_t *buffer, size_t size,
+                               size_t item_size);
 void cbuf_reset(struct circular_buf *cbuf);
 size_t cbuf_size(struct circular_buf *cbuf);
 void cbuf_put(struct circular_buf *cbuf, uint8_t *data);

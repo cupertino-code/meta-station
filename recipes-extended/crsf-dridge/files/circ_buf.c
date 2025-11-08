@@ -1,6 +1,7 @@
 #include "circ_buf.h"
 
-struct circular_buf *cbuf_init(struct circular_buf *cbuf, uint8_t *buffer, size_t size, size_t item_size)
+struct circular_buf *cbuf_init(struct circular_buf *cbuf, uint8_t *buffer, size_t size,
+                               size_t item_size)
 {
     cbuf->buffer = buffer;
     cbuf->max = size;
@@ -44,9 +45,8 @@ void cbuf_put(struct circular_buf *cbuf, uint8_t *data)
 
 int cbuf_get(struct circular_buf *cbuf, uint8_t *data)
 {
-    if (cbuf_empty(cbuf)) {
-        return -1; // Buffer is empty
-    }
+    if (cbuf_empty(cbuf))
+        return -1;  // Buffer is empty
     memcpy(data, &cbuf->buffer[cbuf->tail * cbuf->item_size], cbuf->item_size);
     cbuf->full = false;
     cbuf->tail = (cbuf->tail + 1) % cbuf->max;
@@ -55,17 +55,15 @@ int cbuf_get(struct circular_buf *cbuf, uint8_t *data)
 
 uint8_t *cbuf_get_ptr(struct circular_buf *cbuf)
 {
-    if (cbuf_empty(cbuf)) {
-        return NULL; // Buffer is empty
-    }
+    if (cbuf_empty(cbuf))
+        return NULL;  // Buffer is empty
     return &cbuf->buffer[cbuf->tail * cbuf->item_size];
 }
 
 int cbuf_drop(struct circular_buf *cbuf)
 {
-    if (cbuf_empty(cbuf)) {
-        return -1; // Buffer is empty
-    }
+    if (cbuf_empty(cbuf))
+        return -1;  // Buffer is empty
     cbuf->full = false;
     cbuf->tail = (cbuf->tail + 1) % cbuf->max;
 }
