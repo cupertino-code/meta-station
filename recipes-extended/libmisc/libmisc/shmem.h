@@ -1,14 +1,15 @@
 #ifndef _SHMEM_H_INCLUDED
 #define _SHMEM_H_INCLUDED
 
+#include <fcntl.h>
 #include <stdint.h>
 #include <sys/mman.h>
-#include <fcntl.h>
 #include <unistd.h>
+
 #include "crsf_protocol.h"
 
 struct shared_buffer {
-    uint32_t recording;         // Should be 4 bytes
+    uint32_t recording;  // Should be 4 bytes
     uint8_t flag;
     int aux;
     crsf_channels_t channels;
@@ -27,4 +28,4 @@ struct shared_memory {
 int init_shared(const char *name, struct shared_memory *shm);
 int deinit_shared(struct shared_memory *shm);
 
-#endif // _SHMEM_H_INCLUDED
+#endif  // _SHMEM_H_INCLUDED

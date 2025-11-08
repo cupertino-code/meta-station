@@ -1,10 +1,11 @@
+#include "shmem.h"
+
 #include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "shmem.h"
 
 int init_shared(const char *name, struct shared_memory *shm)
 {
@@ -18,7 +19,7 @@ int init_shared(const char *name, struct shared_memory *shm)
         close(shm->shm_fd);
         return -1;
     }
-    void* addr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm->shm_fd, 0);
+    void *addr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm->shm_fd, 0);
     if (addr == MAP_FAILED) {
         perror("mmap");
         close(shm->shm_fd);
