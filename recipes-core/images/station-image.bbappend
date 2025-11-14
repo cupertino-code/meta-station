@@ -5,6 +5,7 @@ SPECIFIC_TOOLS:append = " \
     libmisc-dev \
     crsf-bridge-dev \
     yaml-cpp-dev \
+    video-table-dev \
 "
 
 GSTREAMER:append = " \
